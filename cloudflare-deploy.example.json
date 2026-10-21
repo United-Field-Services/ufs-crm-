@@ -1,0 +1,12 @@
+{
+  "workerName": "ufs-people",
+  "d1": { "name": "ufs-people-db", "id": "<D1 database id from: npx wrangler d1 create ufs-people-db>" },
+  "r2Bucket": "ufs-people-files",
+  "vars": {
+    "UFS_AUTH_PROVIDER": "convex",
+    "UFS_AUTH_MODE": "standalone",
+    "UFS_CONVEX_URL": "https://<deployment>.convex.cloud",
+    "UFS_CONVEX_SITE_URL": "https://<deployment>.convex.site",
+    "UFS_PASSWORD_RECOVERY": "enabled"
+  }
+}

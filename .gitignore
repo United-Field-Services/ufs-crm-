@@ -59,3 +59,6 @@ next-env.d.ts
 # Local QA reports
 /tests/latest-results.tap
 *.tsbuildinfo
+
+# Cloudflare deployment settings (account-specific)
+/cloudflare-deploy.json
