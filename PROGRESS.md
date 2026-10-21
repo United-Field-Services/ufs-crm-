@@ -78,3 +78,9 @@
 **Files changed**: none in source.
 **Next steps**: see the prioritized list in the chat summary (fix stale tests, fix lint errors, password reset, notifications, dev-setup docs).
 
+
+## 2026-10-21 - Cloudflare Workers deployment
+**Status**: Completed (first deploy live, no file uploads yet)
+**What was done**: Pushed to United-Field-Services/ufs-crm-; added `UFS_SELF_HOSTED` header stripping, `scripts/cloudflare.mjs`, `docs/deploy-cloudflare.md`; created D1 `ufs-people-db` (ENAM), applied migrations 0000-0011, deployed worker `ufs-people` to https://ufs-people.unitedffs.workers.dev (no R2 binding), created first administrator venakat@unitedffs.com bound to the Convex dev deployment.
+**Files changed**: build/sites-worker.ts, lib/self-hosted.ts, scripts/cloudflare.mjs, tests/self-hosted.test.mjs, docs/deploy-cloudflare.md, cloudflare-env.d.ts, cloudflare-deploy.example.json
+**Next steps**: production Convex deployment + real SMTP mailbox; rotate exposed Convex token and Gmail app password; R2 (or Convex file storage) for uploads; admin invite/bind UI; custom domain; boss review of Convex Auth (beta).
