@@ -31,7 +31,8 @@ if (command === "config") {
     binding: "DB", database_name: settings.d1.name, database_id: settings.d1.id,
     migrations_dir: path.join(root, "drizzle"),
   }];
-  config.r2_buckets = [{ binding: "BUCKET", bucket_name: settings.r2Bucket }];
+  // r2Bucket may be null: the app then runs without file uploads (R2 needs a payment method on file).
+  config.r2_buckets = settings.r2Bucket ? [{ binding: "BUCKET", bucket_name: settings.r2Bucket }] : [];
   // UFS_SELF_HOSTED makes the worker discard forged ChatGPT identity headers.
   config.vars = { ...settings.vars, UFS_SELF_HOSTED: "true" };
   const target = path.join(root, "dist/server/wrangler.deploy.json");

@@ -1,7 +1,7 @@
 {
   "workerName": "ufs-people",
   "d1": { "name": "ufs-people-db", "id": "<D1 database id from: npx wrangler d1 create ufs-people-db>" },
-  "r2Bucket": "ufs-people-files",
+  "r2Bucket": null,
   "vars": {
     "UFS_AUTH_PROVIDER": "convex",
     "UFS_AUTH_MODE": "standalone",

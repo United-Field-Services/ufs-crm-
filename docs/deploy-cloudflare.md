@@ -3,7 +3,7 @@
 Prerequisites: a Cloudflare account, `npx wrangler login`, and a production Convex deployment (`auth-convex/README.md`).
 
 1. Create storage (once):
-   `npx wrangler d1 create ufs-people-db` and `npx wrangler r2 bucket create ufs-people-files`
+   `npx wrangler d1 create ufs-people-db` and (optional, needs a payment method on the Cloudflare account) `npx wrangler r2 bucket create ufs-people-files`. Without R2 set `"r2Bucket": null`; everything works except file uploads
 2. Copy `cloudflare-deploy.example.json` to `cloudflare-deploy.json` (git-ignored) and fill in the D1 id and the Convex addresses.
 3. `npm run build`, then `node scripts/cloudflare.mjs config`.
 4. Create the tables: `npx wrangler d1 migrations apply DB --remote --config dist/server/wrangler.deploy.json`
