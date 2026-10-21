@@ -1,0 +1,6 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {fixture,asUser} from './harness.mjs';
+const state=await import('../app/api/state/route.ts');
+const operations=await import('../app/api/operations/route.ts');
+for(const [module,api,pattern,method]of [['workspace',state,/SELECT sha256 FROM employee_photos/,'first'],['operations',operations,/SELECT a.document_id,a.employee_id,a.acknowledged_at/,'all']])for(const change of ['demotion','deactivation','identity'])test(`${module}: private state assembled before ${change} is not returned`,async()=>{const f=fixture();try{const actor=f.employee('reader',{role:'hr_manager'}),prepare=f.env.DB.prepare;let applied=false;f.env.DB.prepare=sql=>{const statement=prepare(sql);if(pattern.test(sql)){const run=statement[method];statement[method]=async()=>{const data=await run();if(!applied){applied=true;f.run('UPDATE employees SET '+(change==='demotion'?'role=?':change==='identity'?'user_id=?':'active=?')+' WHERE id=?',change==='demotion'?'employee':change==='identity'?'new-identity':0,actor.id)}return data}}return statement};const response=await asUser(actor,()=>api.GET());assert.equal(applied,true);assert.equal(response.status,403);const data=await response.json();assert.equal('people' in data,false);assert.equal('templates' in data,false)}finally{f.close()}});

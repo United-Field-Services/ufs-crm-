@@ -1,0 +1,1 @@
+ALTER TABLE `source_employee_links` ADD `review_flag` text DEFAULT '' NOT NULL;

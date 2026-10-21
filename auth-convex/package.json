@@ -1,0 +1,20 @@
+{
+  "name": "ufs-people-auth-convex",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Convex Auth backend (password sign-in, emailed reset codes) used as a swappable sign-in provider by UFS People.",
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/nodemailer": "^8.0.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@auth/core": "^0.41.3",
+    "@convex-dev/auth": "^0.0.96",
+    "@oslojs/crypto": "^1.0.1",
+    "convex": "^1.47.0",
+    "jose": "^6.2.12",
+    "nodemailer": "^8.0.11"
+  }
+}

@@ -1,0 +1,5 @@
+.ufs-recovery-panel { width: min(480px, 100%); padding: 36px 32px; background: #fff; border: 1px solid #e2e8e1; border-radius: 18px; box-shadow: 0 18px 80px #213c2610; }
+.ufs-recovery-panel .ufs-login-card { padding: 0; }
+.ufs-recovery-panel a { color: #17684e; text-decoration: underline; text-underline-offset: 3px; }
+.ufs-recovery-panel a:focus-visible { outline: 3px solid #adc79d; outline-offset: 3px; }
+@media (max-width: 600px) { .ufs-recovery-panel { padding: 26px 20px; margin-top: 20px; } }
