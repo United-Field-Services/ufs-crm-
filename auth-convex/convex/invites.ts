@@ -1,4 +1,4 @@
-import { createAccount } from "@convex-dev/auth/server";
+import { createAccount, modifyAccountCredentials } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
@@ -35,6 +35,26 @@ export const add = internalAction({
     } catch {
       // The account already exists: leave its password untouched.
       return { invited: email, accountCreated: false };
+    }
+  },
+});
+
+// FOR TEST ACCOUNTS ONLY: invite an address and set its password directly (no email). Real people choose their own
+// password through "Forgot password". Run from your computer; the password is never stored anywhere but Convex.
+//   npx convex run invites:addWithPassword '{"email":"test.user@example.test","password":"..."}'
+export const addWithPassword = internalAction({
+  args: { email: v.string(), password: v.string() },
+  handler: async (ctx, { email: raw, password }) => {
+    const email = raw.trim().toLowerCase();
+    if (!EMAIL.test(email) || email.length > 254) throw new ConvexError("Enter a valid email address.");
+    if (password.length < 12 || new TextEncoder().encode(password).length > 72) throw new ConvexError("Use 12 to 72 characters.");
+    await ctx.runMutation(internal.invites.record, { email });
+    try {
+      await createAccount(ctx, { provider: "password", account: { id: email, secret: password }, profile: { email } });
+      return { invited: email, accountCreated: true };
+    } catch {
+      await modifyAccountCredentials(ctx, { provider: "password", account: { id: email, secret: password } });
+      return { invited: email, accountCreated: false, passwordReplaced: true };
     }
   },
 });

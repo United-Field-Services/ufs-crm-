@@ -62,3 +62,5 @@ next-env.d.ts
 
 # Cloudflare deployment settings (account-specific)
 /cloudflare-deploy.json
+/test-accounts.local.json
+/TEST-ACCOUNTS.local.md
