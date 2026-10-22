@@ -291,3 +291,23 @@ test('reminders: the 8 am run turns daily-summary choices into one email', async
   assert.equal(mail.length, 1);
   assert.match(mail[0].subject, /waiting for your decision|summary/);
 });
+
+test('data scopes never mix: live events do not reach test accounts and test accounts are never emailed', async () => {
+  enableMail();
+  const tester = f.employee('tester', { data_scope: 'qa-bots-v1' });
+  const news = await ops(hr, { action: 'saveAnnouncement', title: 'Live news', body: 'For live staff', status: 'published' });
+  assert.equal(news.status, 200);
+  assert.equal(inboxOf(tester.id).length, 0, 'a live announcement does not reach a test account');
+  assert.ok(inboxOf(worker.id).some(row => row.kind === 'announcement'));
+  assert.equal(await notify({ scope: 'live', recipients: tester.id, kind: 'task_assigned', title: 'x', dedupeKey: 's1' }), 0, 'wrong scope is skipped');
+  assert.equal(await notify({ scope: 'qa-bots-v1', recipients: tester.id, kind: 'task_assigned', title: 'In scope', dedupeKey: 's2' }), 1);
+  assert.equal(f.get("SELECT COUNT(*) n FROM email_outbox WHERE to_address = 'tester@example.test'").n, 0, 'test accounts are never emailed');
+  assert.equal(inboxOf(tester.id)[0].email_mode, 'off');
+});
+
+test('reminders only ever notify live accounts', async () => {
+  const tester = f.employee('tester2', { data_scope: 'qa-bots-v1' });
+  f.run("INSERT INTO tasks (id,title,assignee_id,due_date,status,created_by,created_at,data_scope) VALUES ('tt','Test task',?,'2026-10-20','pending',?,'2026-10-01','qa-bots-v1')", tester.id, tester.id);
+  await runReminders(at());
+  assert.equal(inboxOf(tester.id).length, 0);
+});

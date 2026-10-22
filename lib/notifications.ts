@@ -15,7 +15,7 @@ export const markOutboxDirty=()=>{shared.__ufsOutboxDirty=true};
 // Email needs the shared secret and the Convex address that sends it (see auth-convex/convex/http.ts).
 export const mailEnabled=()=>Boolean(env.UFS_NOTIFY_SECRET)&&/^https:\/\/[a-z0-9-]+\.convex\.site$/.test(env.UFS_CONVEX_SITE_URL||'');
 
-export type NotifyInput={recipients:string|string[];kind:NotificationKind;title:string;body?:string;link?:string;relatedId?:string|null;dedupeKey?:string};
+export type NotifyInput={scope?:string;recipients:string|string[];kind:NotificationKind;title:string;body?:string;link?:string;relatedId?:string|null;dedupeKey?:string};
 type Person={id:string;email:string;name:string;data_scope:string};
 type Preference={employee_id:string;in_app:number;email:string};
 
@@ -42,7 +42,9 @@ export async function notify(input:NotifyInput):Promise<number>{
   const ids=[...new Set(Array.isArray(input.recipients)?input.recipients:[input.recipients])].filter(Boolean);
   if(!ids.length)return 0;
   const marks=ids.map(()=>'?').join(',');
-  const people=await all<Person>(`SELECT id,email,name,data_scope FROM employees WHERE id IN (${marks}) AND active=1 AND demo=0`,...ids);
+  const found=await all<Person>(`SELECT id,email,name,data_scope FROM employees WHERE id IN (${marks}) AND active=1 AND demo=0`,...ids);
+  // A notification only ever reaches people in the same data scope as the record that caused it.
+  const people=input.scope?found.filter(person=>person.data_scope===input.scope):found;
   const preferences=await all<Preference>(`SELECT employee_id,in_app,email FROM notification_preferences WHERE kind=? AND employee_id IN (${marks})`,input.kind,...ids);
   const info=NOTIFICATION_KINDS[input.kind],body=(input.body||'').slice(0,1000),link=input.link||'/notifications';
   let created=0;
@@ -50,7 +52,8 @@ export async function notify(input:NotifyInput):Promise<number>{
    const preference=preferences.find(item=>item.employee_id===person.id);
    const inApp=info.mandatory?info.inApp:preference?!!preference.in_app:info.inApp;
    let mode:EmailMode=info.mandatory?info.email:preference&&isEmailMode(preference.email)?preference.email:info.email;
-   if(mode!=='off'&&(!mailEnabled()||!person.email))mode='off';
+   // Test-scope accounts are isolated: their notifications stay inside the app and are never emailed.
+   if(mode!=='off'&&(!mailEnabled()||!person.email||person.data_scope!=='live'))mode='off';
    if(!inApp&&mode==='off')continue;
    const id=uid(),stamp=now(),key=(input.dedupeKey||`${input.kind}:${input.relatedId||id}`).slice(0,200);
    const statements=[db().prepare('INSERT OR IGNORE INTO notifications (id,data_scope,recipient_id,kind,title,body,link,related_id,dedupe_key,in_app,email_mode,digest_pending,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,person.data_scope,person.id,input.kind,input.title.slice(0,200),body,link,input.relatedId??null,key,inApp?1:0,mode,mode==='daily'?1:0,stamp)];

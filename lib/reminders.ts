@@ -13,6 +13,9 @@ export const daysUntil=(date:string,today:string)=>dayNumber(date)-dayNumber(tod
 const plural=(count:number,word:string)=>`${count} ${word}${count===1?'':'s'}`;
 const hrIds=async()=>(await all<{id:string}>("SELECT id FROM employees WHERE role IN ('admin','hr_manager') AND active=1 AND demo=0 AND data_scope='live'")).map(row=>row.id);
 
+// Reminders are for live data only; a recipient from another scope is never notified.
+const send=(input:Parameters<typeof notify>[0])=>notify({...input,scope:'live'});
+
 export type ReminderSummary={created:number;skipped?:string};
 
 export async function runReminders(options:{today?:string;hour?:number;weekday?:string}={}):Promise<ReminderSummary>{
@@ -32,10 +35,10 @@ export async function runReminders(options:{today?:string;hour?:number;weekday?:
  for(const item of waitingTime)if(ageDays(item.updated_at)>=1){const entry=perManager.get(item.required_manager_id)||{leave:0,time:0};entry.time++;perManager.set(item.required_manager_id,entry)}
  for(const [manager,counts] of perManager){
   const parts=[counts.leave?plural(counts.leave,'time-off request'):'',counts.time?plural(counts.time,'timesheet entry').replace('entrys','entries'):''].filter(Boolean);
-  await add(await notify({recipients:manager,kind:'approval_reminder',title:`${parts.join(' and ')} waiting for your decision`,body:'Please review them so people are not left waiting.',link:counts.leave?'/time-off':'/time-tracking',dedupeKey:`approvals:${today}`}));
+  await add(await send({recipients:manager,kind:'approval_reminder',title:`${parts.join(' and ')} waiting for your decision`,body:'Please review them so people are not left waiting.',link:counts.leave?'/time-off':'/time-tracking',dedupeKey:`approvals:${today}`}));
  }
  const hr=await hrIds();
- for(const item of waiting)if(ageDays(item.created_at)>=3&&hr.length)await add(await notify({recipients:hr,kind:'approval_escalation',title:`${item.name}’s ${item.type} request has waited ${plural(ageDays(item.created_at),'day')}`,body:'The assigned approver has not responded. Remind them or reassign the approver on the People page.',link:'/time-off',relatedId:item.id,dedupeKey:`escalate:${item.id}`}));
+ for(const item of waiting)if(ageDays(item.created_at)>=3&&hr.length)await add(await send({recipients:hr,kind:'approval_escalation',title:`${item.name}’s ${item.type} request has waited ${plural(ageDays(item.created_at),'day')}`,body:'The assigned approver has not responded. Remind them or reassign the approver on the People page.',link:'/time-off',relatedId:item.id,dedupeKey:`escalate:${item.id}`}));
 
  // 2. Tasks due soon or overdue: one summary per person per day.
  const tasks=await all<{assignee_id:string;due_date:string}>("SELECT assignee_id,due_date FROM tasks WHERE status='pending' AND data_scope='live' AND due_date<=?",new Date(Date.parse(today+'T12:00:00Z')+86400000).toISOString().slice(0,10));
@@ -43,7 +46,7 @@ export async function runReminders(options:{today?:string;hour?:number;weekday?:
  for(const task of tasks){const entry=perPerson.get(task.assignee_id)||{overdue:0,today:0,tomorrow:0},gap=daysUntil(task.due_date,today);if(gap<0)entry.overdue++;else if(gap===0)entry.today++;else entry.tomorrow++;perPerson.set(task.assignee_id,entry)}
  for(const [person,entry] of perPerson){
   const parts=[entry.overdue?`${entry.overdue} overdue`:'',entry.today?`${entry.today} due today`:'',entry.tomorrow?`${entry.tomorrow} due tomorrow`:''].filter(Boolean);
-  await add(await notify({recipients:person,kind:'task_due',title:`Tasks need attention: ${parts.join(', ')}`,body:'Open your task list to see them.',link:'/tasks',dedupeKey:`tasks:${today}`}));
+  await add(await send({recipients:person,kind:'task_due',title:`Tasks need attention: ${parts.join(', ')}`,body:'Open your task list to see them.',link:'/tasks',dedupeKey:`tasks:${today}`}));
  }
 
  // 3. Equipment to return: 3 days before, on the day, the day after, then weekly.
@@ -52,8 +55,8 @@ export async function runReminders(options:{today?:string;hour?:number;weekday?:
   const gap=daysUntil(asset.return_due,today);
   if(!(gap===3||gap===0||gap===-1||(gap<-1&&(-gap-1)%7===0)))continue;
   const when=gap>0?`is due back in ${plural(gap,'day')}`:gap===0?'is due back today':`is ${plural(-gap,'day')} overdue`;
-  await add(await notify({recipients:asset.assigned_to,kind:'asset_due',title:`${asset.name} (${asset.tag}) ${when}`,body:`Return date: ${formatDate(asset.return_due)}.`,link:'/assets',relatedId:asset.id,dedupeKey:`asset:${asset.id}:${gap}`}));
-  if(gap<=0&&hr.length)await add(await notify({recipients:hr,kind:'asset_due',title:`${asset.name} (${asset.tag}) ${when}`,body:`Return date: ${formatDate(asset.return_due)}.`,link:'/assets',relatedId:asset.id,dedupeKey:`asset-hr:${asset.id}:${gap}`}));
+  await add(await send({recipients:asset.assigned_to,kind:'asset_due',title:`${asset.name} (${asset.tag}) ${when}`,body:`Return date: ${formatDate(asset.return_due)}.`,link:'/assets',relatedId:asset.id,dedupeKey:`asset:${asset.id}:${gap}`}));
+  if(gap<=0&&hr.length)await add(await send({recipients:hr,kind:'asset_due',title:`${asset.name} (${asset.tag}) ${when}`,body:`Return date: ${formatDate(asset.return_due)}.`,link:'/assets',relatedId:asset.id,dedupeKey:`asset-hr:${asset.id}:${gap}`}));
  }
 
  // 4. Files with an expiry date: 30, 7 and 1 day before and on the day. The owner and HR are told.
@@ -62,7 +65,7 @@ export async function runReminders(options:{today?:string;hour?:number;weekday?:
   const gap=daysUntil(doc.expiry_date,today);
   if(![30,7,1,0].includes(gap))continue;
   const title=gap===0?`${doc.name} expires today`:`${doc.name} expires in ${plural(gap,'day')}`;
-  await add(await notify({recipients:[doc.owner_id,...hr],kind:'document_expiring',title,body:`Expiry date: ${formatDate(doc.expiry_date)}.`,link:'/files',relatedId:doc.id,dedupeKey:`doc:${doc.id}:${gap}`}));
+  await add(await send({recipients:[doc.owner_id,...hr],kind:'document_expiring',title,body:`Expiry date: ${formatDate(doc.expiry_date)}.`,link:'/files',relatedId:doc.id,dedupeKey:`doc:${doc.id}:${gap}`}));
  }
 
  // 5. Probation and contract end dates: two weeks and three days before, and on the day. HR and the manager are told.
@@ -70,7 +73,7 @@ export async function runReminders(options:{today?:string;hour?:number;weekday?:
  for(const end of ends){
   const gap=daysUntil(end.date,today);
   if(![14,3,0].includes(gap))continue;
-  await add(await notify({recipients:[...hr,...(end.manager_id?[end.manager_id]:[])],kind:'contract_ending',title:`${end.name}’s ${end.kind.toLowerCase()} ${gap===0?'ends today':`ends in ${plural(gap,'day')}`}`,body:`${end.kind} end date: ${formatDate(end.date)}.`,link:'/people',relatedId:end.id,dedupeKey:`end:${end.id}:${end.kind}:${gap}`}));
+  await add(await send({recipients:[...hr,...(end.manager_id?[end.manager_id]:[])],kind:'contract_ending',title:`${end.name}’s ${end.kind.toLowerCase()} ${gap===0?'ends today':`ends in ${plural(gap,'day')}`}`,body:`${end.kind} end date: ${formatDate(end.date)}.`,link:'/people',relatedId:end.id,dedupeKey:`end:${end.id}:${end.kind}:${gap}`}));
  }
 
  // 6. Work anniversaries (month and day match, at least one year). The person and their manager are told.
@@ -79,14 +82,14 @@ export async function runReminders(options:{today?:string;hour?:number;weekday?:
  for(const person of hires){
   const years=year-Number(person.hire_date.slice(0,4));
   if(years<1)continue;
-  await add(await notify({recipients:person.id,kind:'work_anniversary',title:`Happy ${plural(years,'year')} at United Field Services!`,body:'Thank you for being part of the team.',link:'/',relatedId:person.id,dedupeKey:`anniversary:${person.id}:${year}`}));
-  if(person.manager_id)await add(await notify({recipients:person.manager_id,kind:'work_anniversary',title:`${person.name} marks ${plural(years,'year')} today`,body:'Take a moment to say thank you.',link:'/people',relatedId:person.id,dedupeKey:`anniversary-manager:${person.id}:${year}`}));
+  await add(await send({recipients:person.id,kind:'work_anniversary',title:`Happy ${plural(years,'year')} at United Field Services!`,body:'Thank you for being part of the team.',link:'/',relatedId:person.id,dedupeKey:`anniversary:${person.id}:${year}`}));
+  if(person.manager_id)await add(await send({recipients:person.manager_id,kind:'work_anniversary',title:`${person.name} marks ${plural(years,'year')} today`,body:'Take a moment to say thank you.',link:'/people',relatedId:person.id,dedupeKey:`anniversary-manager:${person.id}:${year}`}));
  }
 
  // 7. Approved time off that starts tomorrow.
  const tomorrow=new Date(Date.parse(today+'T12:00:00Z')+86400000).toISOString().slice(0,10);
  const starting=await all<{id:string;employee_id:string;type:string;start_date:string;end_date:string}>("SELECT id,employee_id,type,start_date,end_date FROM leave_requests WHERE status='approved' AND start_date=? AND data_scope='live'",tomorrow);
- for(const item of starting)await add(await notify({recipients:item.employee_id,kind:'leave_upcoming',title:`Your ${item.type} starts tomorrow`,body:`${formatDate(item.start_date)}${item.end_date!==item.start_date?` to ${formatDate(item.end_date)}`:''}. Enjoy the time off.`,link:'/time-off',relatedId:item.id,dedupeKey:`leave-upcoming:${item.id}`}));
+ for(const item of starting)await add(await send({recipients:item.employee_id,kind:'leave_upcoming',title:`Your ${item.type} starts tomorrow`,body:`${formatDate(item.start_date)}${item.end_date!==item.start_date?` to ${formatDate(item.end_date)}`:''}. Enjoy the time off.`,link:'/time-off',relatedId:item.id,dedupeKey:`leave-upcoming:${item.id}`}));
 
  // 8. Friday timesheet reminder. Opt-in: only people who switched it on, and only if they logged nothing this week.
  if(weekday==='Fri'){
@@ -94,7 +97,7 @@ export async function runReminders(options:{today?:string;hour?:number;weekday?:
   const monday=new Date(Date.parse(today+'T12:00:00Z')-4*86400000).toISOString().slice(0,10);
   for(const person of opted){
    const logged=await all<{n:number}>('SELECT COUNT(*) n FROM time_entries WHERE employee_id=? AND date>=? AND date<=?',person.employee_id,monday,today);
-   if(!logged[0]?.n)await add(await notify({recipients:person.employee_id,kind:'timesheet_reminder',title:'You have not logged any time this week',body:'Add your hours before the weekend.',link:'/time-tracking',dedupeKey:`timesheet:${monday}`}));
+   if(!logged[0]?.n)await add(await send({recipients:person.employee_id,kind:'timesheet_reminder',title:'You have not logged any time this week',body:'Add your hours before the weekend.',link:'/time-tracking',dedupeKey:`timesheet:${monday}`}));
   }
  }
  return {created};
