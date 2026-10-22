@@ -3,7 +3,7 @@ import {AppError,loginEligibleSql,isHR,sameOrigin,readLimited,safeText,validDate
 export const dynamic='force-dynamic';
 const mimeByExt:Record<string,string>={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',txt:'text/plain'};
 export async function POST(req:Request){try{
- sameOrigin(req);const me=await currentEmployee();if(Number(req.headers.get('content-length')||0)>11*1024*1024)throw new AppError('Maximum upload size is 10 MB.');
+ sameOrigin(req);const me=await currentEmployee();if(Number(req.headers.get('content-length')||0)>11*1024*1024)throw new AppError('This file is too large. The limit is 10 MB.',413);
  const bytesBody=await readLimited(req,11*1024*1024);let form:FormData;try{form=await new Response(bytesBody,{headers:{'Content-Type':req.headers.get('content-type')||''}}).formData()}catch{throw new AppError('Invalid file upload.')}if(form.has('data_scope')||form.has('scope'))throw new AppError('Data scope is managed by the server.',403);const file=form.get('file');if(!(file instanceof File)||!file.size||file.size>10*1024*1024)throw new AppError('Choose a non-empty file up to 10 MB.');
  const name=file.name.replace(/[\r\n\x00-\x1f]/g,'').slice(0,180),ext=name.split('.').pop()?.toLowerCase()||'',mime=mimeByExt[ext];if(!mime)throw new AppError('Allowed files: PDF, DOCX, PNG, JPG, or TXT.');
  const bytes=new Uint8Array(await file.arrayBuffer());const ascii=new TextDecoder().decode(bytes.slice(0,5));

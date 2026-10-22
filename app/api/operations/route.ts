@@ -2,6 +2,8 @@ import {all,currentEmployee,db,first,now,uid,response,failure,businessDate} from
 import {AppError,loginEligibleSql,isHR,isManager,requireHR,requireManager,safeText,validDate,sameOrigin,jsonBody,scopeOf,scopeSql,type Employee} from '../../../lib/policy';
 export const dynamic='force-dynamic';
 const text=(v:unknown,max=500)=>typeof v==='string'?v.trim().slice(0,max):'';
+// Over-long text is refused with a message rather than quietly cut short.
+const limited=(v:unknown,max:number,label:string)=>{const value=text(v,max+1);if(value.length>max)throw new AppError(`${label} is too long (maximum ${max} characters).`);return value};
 const optDate=(v:unknown)=>v==null||v===''?null:validDate(v);
 // A request's scope is server-owned. Recheck that the actor still belongs to it
 // in the mutation, so an in-flight request cannot follow an account into another scope.
@@ -90,12 +92,12 @@ export async function POST(req:Request){try{
   return response({ok:true,message:restoring?'Template restored. It can be started again. Existing checklists and tasks are unchanged.':'Template archived. Existing checklists and tasks are unchanged. You can restore it from Archived templates.'});
  }
  if(action==='saveAsset'){
-  requireHR(me);const id=b.id?safeText(b.id,'Asset'):uid(),name=safeText(b.name,'Asset name'),tag=safeText(b.tag,'Asset tag',80),category=safeText(b.category,'Category',80);
+  requireHR(me);const id=b.id?safeText(b.id,'Asset'):uid(),name=safeText(b.name,'Asset name'),tag=safeText(b.tag,'Asset tag',80),category=safeText(b.category,'Category',80),serial=limited(b.serial,150,'Serial number'),notes=limited(b.notes,1000,'Equipment notes');
   if(b.id&&!await first(`SELECT id FROM assets WHERE id=? AND ${s('assets')}`,id))throw new AppError('Asset not found.',404);
   // Tag uniqueness is local to scope and checked in the actual write.
   const statement=b.id
-   ?db().prepare(`UPDATE assets SET name=?,category=?,tag=?,serial=?,notes=?,updated_at=? WHERE id=? AND ${s('assets')} AND ${activeHR} AND EXISTS (SELECT 1 FROM employees author WHERE author.id=assets.created_by AND ${s('author')}) AND (assigned_to IS NULL OR EXISTS (SELECT 1 FROM employees assignee WHERE assignee.id=assets.assigned_to AND ${s('assignee')})) AND NOT EXISTS (SELECT 1 FROM assets other WHERE other.tag=? AND other.id<>? AND ${s('other')})`).bind(name,category,tag,text(b.serial,150),text(b.notes,1000),now(),id,me.id,tag,id)
-   :db().prepare(`INSERT INTO assets (id,name,category,tag,serial,notes,created_by,updated_at,data_scope) SELECT ?,?,?,?,?,?,?,?,? WHERE ${activeHR} AND NOT EXISTS (SELECT 1 FROM assets WHERE tag=? AND ${s('assets')})`).bind(id,name,category,tag,text(b.serial,150),text(b.notes,1000),me.id,now(),scope,me.id,tag);
+   ?db().prepare(`UPDATE assets SET name=?,category=?,tag=?,serial=?,notes=?,updated_at=? WHERE id=? AND ${s('assets')} AND ${activeHR} AND EXISTS (SELECT 1 FROM employees author WHERE author.id=assets.created_by AND ${s('author')}) AND (assigned_to IS NULL OR EXISTS (SELECT 1 FROM employees assignee WHERE assignee.id=assets.assigned_to AND ${s('assignee')})) AND NOT EXISTS (SELECT 1 FROM assets other WHERE other.tag=? AND other.id<>? AND ${s('other')})`).bind(name,category,tag,serial,notes,now(),id,me.id,tag,id)
+   :db().prepare(`INSERT INTO assets (id,name,category,tag,serial,notes,created_by,updated_at,data_scope) SELECT ?,?,?,?,?,?,?,?,? WHERE ${activeHR} AND NOT EXISTS (SELECT 1 FROM assets WHERE tag=? AND ${s('assets')})`).bind(id,name,category,tag,serial,notes,me.id,now(),scope,me.id,tag);
   const r=await auditedWrite(statement,me,b.id?'Updated asset':'Created asset',id);
   if(!r.meta.changes)throw new AppError('That asset tag is already in use, or the asset or your access changed.',409);
   return response({ok:true,id});
@@ -105,7 +107,7 @@ export async function POST(req:Request){try{
   let employeeId:string|null=null,status='available',returnDue:string|null=null,assignedAt:string|null=null;
   if(action==='assignAsset'){
    employeeId=safeText(b.employeeId,'Employee');if(!await first(`SELECT id FROM employees WHERE id=? AND ${s('employees')} AND active=1`,employeeId))throw new AppError('Choose an active employee.');
-   if(asset.status!=='available')throw new AppError('Return an assigned asset before assigning it again.',409);status='assigned';returnDue=optDate(b.returnDue);assignedAt=now();
+   if(asset.status!=='available')throw new AppError('Return an assigned asset before assigning it again.',409);status='assigned';returnDue=optDate(b.returnDue);if(returnDue&&returnDue<businessDate())throw new AppError('The expected return date cannot be in the past.');assignedAt=now();
   }
   if(action==='returnAsset'&&asset.status!=='assigned')throw new AppError('Only assigned assets can be returned.',409);
   if(action==='setAssetStatus'){if(asset.status==='assigned')throw new AppError('Return this asset before changing its inventory status.',409);if(typeof b.status!=='string'||!['available','maintenance','retired'].includes(b.status))throw new AppError('Select an inventory status.');status=b.status}

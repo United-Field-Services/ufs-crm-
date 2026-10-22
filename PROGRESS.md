@@ -91,3 +91,9 @@
 **Left as decision**: UFS-13 past dates stay allowed (retroactive sick leave); Finance employee has no extra access.
 **Files changed**: app/workspace.tsx, app/login/*, app/*/page.tsx, app/workspace-route.tsx, app/globals.css, app/employee-profile.tsx, app/dashboard.tsx, app/workforce.tsx, app/api/action/route.ts, lib/auth-fetch.ts, lib/profiles.ts, lib/sections.ts, scripts/cloudflare.mjs, tests/qa-fixes.test.mjs
 **Next steps**: re-run QA on the live site; production Convex + real SMTP; R2 or other file storage.
+
+## 2026-10-22 - QA round 2 (UFS-16 to UFS-25)
+**Status**: Completed and deployed
+**What was done**: File storage in D1 when no R2 bucket (migration 0012 file_chunks, lib/d1-storage.ts); 10 MB check in form and 413 on server; busy labels for approve/submit/return; asset and workflow validation; report range and source notes; parallel state queries; API permission tests; QA data removed from live DB.
+**Files changed**: lib/d1-storage.ts, lib/server.ts, drizzle/0012_file_chunks.sql, app/workspace.tsx, app/operations.tsx, app/dashboard.tsx, app/api/state|operations|files routes, tests/permissions-api.test.mjs, tests/qa-fixes.test.mjs
+**Next steps**: add R2 later if wanted (set r2Bucket); consider a database region near the users; production Convex + SMTP.

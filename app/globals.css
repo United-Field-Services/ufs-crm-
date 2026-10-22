@@ -24,3 +24,7 @@ button.primary:disabled::after{content:'';display:inline-block;width:13px;height
 @keyframes ufs-spin{to{transform:rotate(360deg)}}
 .profile-identity h2,.profile-name-row h2{overflow-wrap:anywhere;word-break:break-word;min-width:0}
 .profile-name-row{flex-wrap:wrap;min-width:0}
+/* Long serial numbers, notes and names wrap inside their cell instead of stretching the table. */
+.table-wrap td,.table-wrap td small,.table-wrap td strong{overflow-wrap:anywhere;word-break:break-word}
+.table-wrap td{max-width:340px}
+.ops-row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}

@@ -2,11 +2,14 @@
 import { beforeEach, afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { fixture, asUser, jsonRequest, fileContext, origin } from './harness.mjs';
+import { fixture, asUser, jsonRequest, uploadRequest, fileContext, fileRequest, origin } from './harness.mjs';
+import { d1Bucket } from '../lib/d1-storage.ts';
 import { SECTION_PATHS, sectionForPath, sectionPath } from '../lib/sections.ts';
 
 const action = await import('../app/api/action/route.ts');
 const profiles = await import('../app/api/profiles/[id]/route.ts');
+const files = await import('../app/api/files/route.ts');
+const file = await import('../app/api/files/[id]/route.ts');
 let f, owner, hr;
 beforeEach(() => { f = fixture(); owner = f.employee('owner', { role: 'admin' }); hr = f.employee('hr', { role: 'hr_manager' }); });
 afterEach(() => f.close());
@@ -77,4 +80,68 @@ test('UFS-03: every section has its own address and a page for it', () => {
     const file = path === '/' ? 'app/page.tsx' : `app${path}/page.tsx`;
     assert.ok(existsSync(new URL(`../${file}`, import.meta.url)), `${section} needs ${file}`);
   }
+});
+
+test('UFS-16: files are stored in the database when no R2 bucket is bound', async () => {
+  const bytes = new Uint8Array(2_600_000).map((_, index) => (index * 31) % 251);
+  const store = d1Bucket(f.env.DB);
+  await store.put('documents/x/one', bytes);
+  const back = new Uint8Array(await new Response((await store.get('documents/x/one')).body).arrayBuffer());
+  assert.equal(back.length, bytes.length);
+  assert.ok(back.every((value, index) => value === bytes[index]));
+  assert.ok(f.get('SELECT COUNT(*) n FROM file_chunks').n >= 4, 'large files use several rows');
+  await store.put('documents/x/one', new Uint8Array([1, 2, 3]));
+  assert.deepEqual([...new Uint8Array(await new Response((await store.get('documents/x/one')).body).arrayBuffer())], [1, 2, 3]);
+  await store.delete('documents/x/one');
+  assert.equal(await store.get('documents/x/one'), null);
+  assert.equal(f.get('SELECT COUNT(*) n FROM file_chunks').n, 0);
+});
+
+test('UFS-16: upload and download work without an R2 bucket', async () => {
+  delete f.env.BUCKET;
+  const uploaded = await asUser(hr, () => files.POST(uploadRequest('policy.txt', 'Synthetic policy text', { visibility: 'company', category: 'Policy' })));
+  assert.equal(uploaded.status, 200, await uploaded.clone().text());
+  const { id } = await uploaded.json();
+  const download = await asUser(owner, () => file.GET(fileRequest(id), fileContext(id)));
+  assert.equal(download.status, 200);
+  assert.equal(await download.text(), 'Synthetic policy text');
+});
+
+test('UFS-17: an oversized upload is refused straight away with a clear message', async () => {
+  const big = new Request(`${origin}/api/files`, { method: 'POST', headers: { Origin: origin, 'content-length': String(12 * 1024 * 1024), 'content-type': 'multipart/form-data; boundary=x' }, body: 'x' });
+  const response = await asUser(hr, () => files.POST(big));
+  assert.equal(response.status, 413);
+  assert.match((await response.json()).error, /10 MB/);
+});
+
+const operations = await import('../app/api/operations/route.ts');
+const ops = (who, body) => asUser(who, () => operations.POST(new Request(`${origin}/api/operations`, { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })));
+const asset = (overrides = {}) => ({ action: 'saveAsset', name: 'Laptop', tag: 'QA-1', category: 'Laptop', ...overrides });
+
+test('UFS-20: an over-long serial number or note is refused, not silently cut', async () => {
+  const serial = await ops(hr, asset({ serial: 'S'.repeat(300) }));
+  assert.equal(serial.status, 400);
+  assert.match((await serial.json()).error, /serial number is too long/i);
+  assert.equal((await ops(hr, asset({ notes: 'n'.repeat(2000) }))).status, 400);
+  assert.equal(f.get('SELECT COUNT(*) n FROM assets').n, 0);
+  assert.equal((await ops(hr, asset({ serial: 'S'.repeat(150) }))).status, 200);
+});
+
+test('UFS-21: an asset cannot be assigned with a return date in the past', async () => {
+  const created = await (await ops(hr, asset())).json();
+  const worker = f.employee('assignee');
+  const past = await ops(hr, { action: 'assignAsset', id: created.id, employeeId: worker.id, returnDue: '2020-01-01' });
+  assert.equal(past.status, 400);
+  assert.match((await past.json()).error, /past/i);
+  const future = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  assert.equal((await ops(hr, { action: 'assignAsset', id: created.id, employeeId: worker.id, returnDue: future })).status, 200);
+});
+
+test('UFS-22: workflow steps need a short title and a day offset in range', async () => {
+  const step = (overrides = {}) => ({ title: 'Step', assignee: 'employee', offset: 0, description: '', ...overrides });
+  const save = steps => ops(hr, { action: 'saveTemplate', name: 'Template', kind: 'Onboarding', steps });
+  assert.equal((await save([step({ title: 'T'.repeat(600) })])).status, 400);
+  assert.equal((await save([step({ offset: -500 })])).status, 400);
+  assert.equal((await save([step({ offset: 'abc' })])).status, 400);
+  assert.equal((await save([step({ offset: -5 })])).status, 200, 'a step due before the start date is allowed');
 });
