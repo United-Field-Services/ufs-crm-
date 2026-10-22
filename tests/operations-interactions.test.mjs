@@ -129,7 +129,7 @@ test('leaving the page during a POST does not refresh or close a newer page',asy
 });
 test('HR company news explains own acknowledgement and preserves Mark as read',async()=>{
  ops.announcements=[{id:'news',title:'Synthetic notice',body:'Synthetic message',category:'News',status:'published',created_at:'2026-01-01',author:'Synthetic author',read_count:0,read_at:null}];
- await mount('Company news');assert.match(text(),/only your own acknowledgement, including for HR/);assert.match(text(),/does not mark the announcement as read for anyone else/);
+ await mount('Company news');assert.match(text(),/records only your own acknowledgement/);assert.match(text(),/does not mark the announcement as read for anyone else/);
  await click(button('Mark as read'));assert.deepEqual(posts()[0].body,{action:'readAnnouncement',id:'news'});assert.equal(button('Read').disabled,true);
 });
 

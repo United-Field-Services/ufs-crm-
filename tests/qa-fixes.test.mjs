@@ -145,3 +145,23 @@ test('UFS-22: workflow steps need a short title and a day offset in range', asyn
   assert.equal((await save([step({ offset: 'abc' })])).status, 400);
   assert.equal((await save([step({ offset: -5 })])).status, 200, 'a step due before the start date is allowed');
 });
+
+const { formatDate, formatMonth } = await import('../lib/format.ts');
+test('UFS-31: one date style everywhere', () => {
+  assert.equal(formatDate('2026-11-05'), 'Nov 5, 2026');
+  assert.equal(formatDate('2026-11-05T09:30:00.000Z'), 'Nov 5, 2026');
+  assert.equal(formatDate(''), '—');
+  assert.equal(formatDate(null), '—');
+  assert.equal(formatMonth('2026-03'), 'Mar 2026');
+});
+
+test('UFS-33: phone and tablet layout is in place', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../app/responsive.css', import.meta.url), 'utf8');
+  for (const rule of ['@media (max-width:1024px)', '@media (max-width:720px)', '.bottom-nav', '.table-wrap td::before', 'env(safe-area-inset-bottom)', 'attr(data-label)']) assert.ok(css.includes(rule), rule);
+  const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
+  assert.match(layout, /viewportFit:'cover'/);
+  const workspace = readFileSync(new URL('../app/workspace.tsx', import.meta.url), 'utf8');
+  assert.match(workspace, /import '\.\/responsive\.css'/);
+  assert.match(workspace, /className="bottom-nav"/);
+});

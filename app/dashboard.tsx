@@ -3,6 +3,7 @@ import {EmployeeAvatar} from './employee-avatar';
 import {MyTimeOffCard} from './my-time-off-card';
 
 import {useId,useRef,useState} from 'react';
+import {formatMonth} from '../lib/format';
 import {Info,ArrowUpRight,CalendarDays,CheckSquare2,ChevronRight,FileText,Filter,FolderOpen,MapPin,PieChart,Search,Users,X} from 'lucide-react';
 import './talenthr-layout.css';
 import {directoryActive,type PersonRecord} from '../lib/workforce';
@@ -62,8 +63,8 @@ export function TalentDashboard({data,onNavigate,onProfile,onRequestLeave,onPeop
  const rangePreset=endMonth!==lastMonth?'custom':startMonth===firstMonth?'all':startMonth===headcountSnapshot.at(-3)?.month?'3':startMonth===headcountSnapshot.at(-6)?.month?'6':startMonth===`${snapshotYear}-01`?'year':'custom';
  const reportId=useId(),reportTabRefs=useRef<(HTMLButtonElement|null)[]>([]);
  function chooseRange(value:string){if(value==='custom'||!hasSnapshot)return;setEndMonth(lastMonth);setStartMonth(value==='all'?firstMonth:value==='year'?headcountSnapshot.find(row=>row.month.startsWith(snapshotYear))?.month||firstMonth:headcountSnapshot.at(-Number(value))?.month||firstMonth)}
- function changeStartMonth(value:string){setStartMonth(value);if(value>endMonth){setEndMonth(value);setRangeNote('The start month was after the end month, so the end month moved to '+value+'.')}else setRangeNote('')}
- function changeEndMonth(value:string){setEndMonth(value);if(value<startMonth){setStartMonth(value);setRangeNote('The end month was before the start month, so the start month moved to '+value+'.')}else setRangeNote('')}
+ function changeStartMonth(value:string){setStartMonth(value);if(value>endMonth){setEndMonth(value);setRangeNote('The start month was after the end month, so the end month moved to '+formatMonth(value)+'.')}else setRangeNote('')}
+ function changeEndMonth(value:string){setEndMonth(value);if(value<startMonth){setStartMonth(value);setRangeNote('The end month was before the start month, so the start month moved to '+formatMonth(value)+'.')}else setRangeNote('')}
  const seenAway=new Set<string>(),away=data.teamAway.filter(r=>{if(!filteredIds.has(r.employee_id)||r.start_date>targetDay||r.end_date<targetDay||seenAway.has(r.employee_id))return false;seenAway.add(r.employee_id);return true});
  const holidays:HolidayRow[]=([...(data.holidays||[]),...data.events.filter(e=>/holiday/i.test(String(e.kind||'')))] as HolidayRow[]).filter(e=>!data.importSummary||source==='review'||!e.demo).filter((e,i,all)=>{const date=e.date||e.start_date||'',end=e.end_date||date,eventLocation=String(e.location||'');return date<=targetDay&&end>=targetDay&&(!location||!eventLocation||['All','All locations','Company-wide'].includes(eventLocation)||eventLocation===location)&&all.findIndex(x=>(x.id&&x.id===e.id)||((x.date||x.start_date)===date&&(x.title||x.name)===(e.title||e.name)))===i});
  const upcoming=data.events.filter(e=>e.date>=today&&((source!=='real'&&!(source==='snapshot'&&data.importSummary))||!e.demo)).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).slice(0,4),pending=data.requests.filter(r=>r.status==='pending'&&(r.employee_id===data.me.id||r.required_manager_id===data.me.id)),myTasks=data.tasks.filter(t=>t.status==='pending'&&((source!=='real'&&!(source==='snapshot'&&data.importSummary))||!t.demo)).slice().sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date)));

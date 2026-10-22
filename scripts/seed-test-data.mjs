@@ -167,7 +167,7 @@ function sql() {
   });
 
   // Events and announcements.
-  [["Monthly all-hands", "2026-10-30", "Company event"], ["Safety workshop", "2026-11-05", "Company event"], ["Thanksgiving", "2026-11-26", "Holiday"], ["Q4 planning day", "2026-12-02", "Company event"], ["Holiday party", "2026-12-17", "Company event"], ["Christmas Day", "2026-12-25", "Holiday"], ["New Year's Day", "2027-01-01", "Holiday"], ["Benefits enrollment closes", "2026-11-15", "Company event"]].forEach(([title, date, kind], i) => {
+  [["Company town hall", "2026-10-30", "Company event"], ["Safety workshop", "2026-11-05", "Company event"], ["Thanksgiving", "2026-11-26", "Holiday"], ["Q4 planning day", "2026-12-02", "Company event"], ["Holiday party", "2026-12-17", "Company event"], ["Christmas Day", "2026-12-25", "Holiday"], ["New Year's Day", "2027-01-01", "Holiday"], ["Benefits enrollment closes", "2026-11-15", "Company event"]].forEach(([title, date, kind], i) => {
     out.push(insert("events", { id: `test-event-${i + 1}`, title, date, kind, location: "All locations", created_by: idOf("hr"), demo: 0, data_scope: "live" }));
   });
   [["Welcome to the UFS People test site", "This is sample data for testing. Nothing here is real.", "Company news", 1], ["Open enrollment reminder", "Benefits enrollment closes on November 15 (sample).", "HR", 0], ["Office closed for Thanksgiving", "The office is closed on November 26 (sample).", "Company news", 0], ["New starters this month", "Please welcome our newest team members (sample).", "People", 0]].forEach(([title, body, category, pinned], i) => {
