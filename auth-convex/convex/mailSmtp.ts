@@ -11,8 +11,8 @@ import { internalAction } from "./_generated/server";
 //   SMTP_FROM   optional sender text, default "UFS People <SMTP_USER>"
 // Only the server can call this (internal); it is used for password-reset codes.
 export const send = internalAction({
-  args: { to: v.string(), subject: v.string(), text: v.string() },
-  handler: async (_ctx, { to, subject, text }) => {
+  args: { to: v.string(), subject: v.string(), text: v.string(), html: v.optional(v.string()) },
+  handler: async (_ctx, { to, subject, text, html }) => {
     const user = process.env.SMTP_USER, pass = process.env.SMTP_PASS?.replace(/\s+/g, "");
     if (!user || !pass) throw new Error("SMTP is not configured");
     const port = Number(process.env.SMTP_PORT || 465);
@@ -21,7 +21,7 @@ export const send = internalAction({
       auth: { user, pass }, connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 15_000,
     });
     try {
-      await transport.sendMail({ from: process.env.SMTP_FROM || `UFS People <${user}>`, to, subject, text });
+      await transport.sendMail({ from: process.env.SMTP_FROM || `UFS People <${user}>`, to, subject, text, ...(html ? { html } : {}) });
     } catch (error) {
       // Log only the error type and SMTP status (visible in your Convex dashboard logs); never the address or the provider's message.
       console.error("Password reset email was not sent", {
