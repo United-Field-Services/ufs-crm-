@@ -165,3 +165,14 @@ test('UFS-33: phone and tablet layout is in place', async () => {
   assert.match(workspace, /import '\.\/responsive\.css'/);
   assert.match(workspace, /className="bottom-nav"/);
 });
+
+test('demo people are never created unless a developer turns them on', async () => {
+  const { GET } = await import('../app/api/state/route.ts');
+  await asUser(owner, () => GET(new Request(`${origin}/api/state`)));
+  assert.equal(f.get('SELECT COUNT(*) n FROM employees WHERE demo = 1').n, 0);
+  f.env.UFS_DEMO_DATA = 'enabled';
+  try {
+    await asUser(owner, () => GET(new Request(`${origin}/api/state`)));
+    assert.ok(f.get('SELECT COUNT(*) n FROM employees WHERE demo = 1').n > 0, 'local development still gets sample data');
+  } finally { delete f.env.UFS_DEMO_DATA; }
+});

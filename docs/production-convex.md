@@ -29,3 +29,8 @@ Switched on 2026-10-22. The live site signs in through production Convex and the
 The six test accounts and the sample data belong to the old development sign-in, so those logins no longer work. Remove the sample data
 (`docs/test-data.md`) before real employees are added.
 The sending mailbox settings were copied from development: change the App Password (and delete the old one in the Google account) as soon as possible.
+
+## Fake data removed (2026-10-22)
+All sample and test records were deleted from the live database; only the real administrator remains. A backup of the database from just before
+the wipe is on the Desktop in `ufs-db-backups`. The built-in demo people are now opt-in: they are only created when `UFS_DEMO_DATA=enabled`
+(set by `npm run setup` for local development) and never in production.

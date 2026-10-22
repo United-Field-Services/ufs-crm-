@@ -1,6 +1,9 @@
+import {env} from 'cloudflare:workers';
 import {db,now,businessDate} from './server';
 import {scopeOf,type Employee} from './policy';
 export async function ensureDemo(me:Employee){
+ // Sample people, requests and tasks are only created when a developer asks for them (local setup). Never in production.
+ if(env.UFS_DEMO_DATA!=='enabled')return;
  if(me.role!=='admin'||scopeOf(me)!=='live')return;
  const month=businessDate().slice(0,7),y=Number(month.slice(0,4));
  const people=[['demo-alex','Alex Morgan','Operations Coordinator','Administration & Operations','United States'],['demo-jamie','Jamie Chen','HR Specialist','Human Resources','Asia'],['demo-taylor','Taylor Brooks','Field Coordinator','Vendor Management','United States'],['demo-sam','Sam Rivera','Accountant','Accounting & Finance','Europe'],['demo-jordan','Jordan Lee','Order Specialist','Order processing','Asia'],['demo-casey','Casey Wilson','Account Manager','Marketing & Sales','Europe']];
