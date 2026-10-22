@@ -7,6 +7,7 @@
     "UFS_AUTH_MODE": "standalone",
     "UFS_CONVEX_URL": "https://<deployment>.convex.cloud",
     "UFS_CONVEX_SITE_URL": "https://<deployment>.convex.site",
-    "UFS_PASSWORD_RECOVERY": "enabled"
+    "UFS_PASSWORD_RECOVERY": "enabled",
+    "UFS_PUBLIC_URL": "https://<your-site-address>"
   }
 }

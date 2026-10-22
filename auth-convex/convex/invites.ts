@@ -13,6 +13,16 @@ export const record = internalMutation({
   },
 });
 
+// Is this address an invited person? Used before sending a notification email.
+export const isKnown = internalQuery({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const address = email.trim().toLowerCase();
+    const invited = await ctx.db.query("invitedEmails").withIndex("email", (q) => q.eq("email", address)).unique();
+    return invited !== null;
+  },
+});
+
 export const list = internalQuery({
   args: {},
   handler: async (ctx) => (await ctx.db.query("invitedEmails").collect()).map((row) => row.email),

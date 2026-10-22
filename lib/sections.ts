@@ -13,6 +13,7 @@ export const SECTION_PATHS: Record<string, string> = {
   Tasks: '/tasks',
   Workflows: '/workflows',
   Assets: '/assets',
+  Notifications: '/notifications',
   Settings: '/settings',
 };
 

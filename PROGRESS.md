@@ -102,3 +102,9 @@
 **Status**: Completed
 **What was done**: Production deployment basic-ostrich-538 created (code, signing keys, SITE_URL, SMTP settings); live site switched to it; administrator bound and password set by email code. Test logins (dev issuer) no longer work.
 **Next steps**: rotate the SMTP App Password and the earlier Convex token; remove sample data before real staff; invite real employees (invites:add --prod + identity binding); boss review of Convex Auth; consider a service mailbox (SES).
+
+## 2026-10-23 - Notifications and reminders
+**Status**: Completed and deployed (migration 0013, Worker cron every minute and every 30 minutes, Convex /notify route, secret on Worker and both Convex deployments)
+**What was done**: In-app inbox, bell, preferences (in-app, instant or daily-summary email, mandatory security notices), 18 notification kinds, reminders with escalation (waiting approvals, tasks, equipment, file expiry, probation/contract end, anniversaries, upcoming leave, optional Friday timesheet), email queue with retries, branded emails, tests (27 new). Pipeline verified live: a queued email was sent by the scheduled run.
+**Files changed**: lib/notifications.ts, lib/notify-events.ts, lib/reminders.ts, lib/notification-kinds.ts, lib/notification-inbox.ts, app/api/notifications/route.ts, app/notifications.tsx, app/workspace.tsx, build/sites-worker.ts, scripts/cloudflare.mjs, auth-convex/convex/http.ts, drizzle/0013_notifications.sql, docs/notifications.md, tests/notifications.test.mjs
+**Next steps**: push notifications / SMS / Slack, quiet hours, birthday notices (privacy review), a service mailbox (SES) for volume.

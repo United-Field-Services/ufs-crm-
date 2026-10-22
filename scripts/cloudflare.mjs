@@ -37,6 +37,8 @@ if (command === "config") {
   // Run the worker next to the database (D1 is in eastern North America). Each request makes many database
   // calls, so running far from D1 made pages take 5 s; set "placement" in cloudflare-deploy.json to change it.
   config.placement = settings.placement ?? { region: "aws:us-east-1" };
+  // Queued emails go out every minute; reminders are created every 30 minutes.
+  config.triggers = { crons: ["* * * * *", "*/30 * * * *"] };
   config.vars = { ...settings.vars, UFS_SELF_HOSTED: "true" };
   const target = path.join(root, "dist/server/wrangler.deploy.json");
   writeFileSync(target, JSON.stringify(config, null, 2));

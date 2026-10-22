@@ -204,6 +204,8 @@ function cleanup() {
   const like = `'test-%'`;
   const sqlLines = [
     "-- Removes everything seed-test-data.mjs added (rows tagged test-...).",
+    `DELETE FROM notifications WHERE recipient_id LIKE ${like};`,
+    `DELETE FROM notification_preferences WHERE employee_id LIKE ${like};`,
     `DELETE FROM employee_identities WHERE id LIKE ${like};`,
     `DELETE FROM time_entries WHERE id LIKE ${like};`,
     `DELETE FROM leave_requests WHERE id LIKE ${like};`,

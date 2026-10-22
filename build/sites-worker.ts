@@ -2,6 +2,8 @@ import handler from "vinext/server/fetch-handler";
 import { runWithConnectorBinding } from "../lib/connector-context";
 import type { ConnectorBinding } from "../lib/connector-contract.mjs";
 import { stripPlatformIdentity } from "../lib/self-hosted";
+import { flushOutbox, takeOutboxDirty } from "../lib/notifications";
+import { runReminders } from "../lib/reminders";
 
 export default {
   async fetch(incoming: Request, env: Cloudflare.Env, ctx: ExecutionContext<{ CONNECTORS?: ConnectorBinding }>) {
@@ -27,6 +29,8 @@ export default {
       };
     }
     const handled = await runWithConnectorBinding(binding, () => handler.fetch(request, env, ctx));
+    // Emails queued during this request go out right after the response, without making the person wait.
+    if (takeOutboxDirty()) ctx.waitUntil(flushOutbox());
     const response = new Response(handled.body, handled);
     const pathname = new URL(request.url).pathname;
     if (pathname.startsWith('/api/') || !/\.[a-z0-9]+$/i.test(pathname)) {
@@ -41,5 +45,12 @@ export default {
     response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     if (!import.meta.env.DEV) response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self' https://chatgpt.com");
     return response;
+  },
+  // Cron: every minute send queued emails; every 30 minutes also create reminders (see lib/reminders.ts).
+  async scheduled(event: ScheduledController, _env: Cloudflare.Env, ctx: ExecutionContext) {
+    ctx.waitUntil((async () => {
+      if (event.cron === "*/30 * * * *") await runReminders();
+      await flushOutbox(50);
+    })());
   },
 };

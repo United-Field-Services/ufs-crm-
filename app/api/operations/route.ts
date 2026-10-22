@@ -1,4 +1,5 @@
 import {all,currentEmployee,db,first,now,uid,response,failure,businessDate} from '../../../lib/server';
+import {onTasksAssigned,onAssetAssigned,onAnnouncementSaved,onTimeSubmitted,onTimeReviewed} from '../../../lib/notify-events';
 import {AppError,loginEligibleSql,isHR,isManager,requireHR,requireManager,safeText,validDate,sameOrigin,jsonBody,scopeOf,scopeSql,type Employee} from '../../../lib/policy';
 export const dynamic='force-dynamic';
 const text=(v:unknown,max=500)=>typeof v==='string'?v.trim().slice(0,max):'';
@@ -81,6 +82,7 @@ export async function POST(req:Request){try{
   commands.push(auditStatement(me,'Started employee checklist',id));
   const results=await db().batch(commands);
   if(!results[0].meta.changes)throw new AppError('The template, employee, manager, or your access changed. Refresh before trying again.',409);
+  await onTasksAssigned(me,'workflow_id',id);
   return response({ok:true,id,message:`${steps.length} assigned tasks created. No email or external account changes were made.`});
  }
  if(action==='archiveTemplate'||action==='restoreTemplate'){
@@ -116,6 +118,7 @@ export async function POST(req:Request){try{
   const history=db().prepare(`INSERT INTO asset_history (id,asset_id,employee_id,action,actor_id,created_at,data_scope) SELECT ?,?,?,?,?,?,? WHERE changes()>0 AND ${activeHR} AND EXISTS (SELECT 1 FROM assets WHERE id=? AND ${s('assets')}) AND (? IS NULL OR EXISTS (SELECT 1 FROM employees WHERE id=? AND ${s('employees')}))`).bind(uid(),id,historyEmployee,action,me.id,now(),scope,me.id,id,historyEmployee,historyEmployee);
   const r=await auditedWrite(statement,me,action==='assignAsset'?'Assigned asset':action==='returnAsset'?'Recorded asset return':'Updated inventory status',id,[history]);
   if(!r.meta.changes)throw new AppError('The asset, employee, or your access changed. Refresh before trying again.',409);
+  if(action==='assignAsset')await onAssetAssigned(me,id);
   return response({ok:true});
  }
  if(action==='saveAnnouncement'){
@@ -125,6 +128,7 @@ export async function POST(req:Request){try{
   const statement=db().prepare(`INSERT INTO announcements (id,title,body,category,status,pinned,created_by,created_at,published_at,data_scope) SELECT ?,?,?,?,?,?,?,?,?,? WHERE ${activeHR} AND (?=0 OR EXISTS (SELECT 1 FROM announcements WHERE id=? AND ${s('announcements')} AND EXISTS (SELECT 1 FROM employees author WHERE author.id=announcements.created_by AND ${s('author')}))) ON CONFLICT(id) DO UPDATE SET title=excluded.title,body=excluded.body,category=excluded.category,status=excluded.status,pinned=excluded.pinned,published_at=COALESCE(announcements.published_at,excluded.published_at) WHERE ${s('announcements')}`).bind(id,title,body,text(b.category,80)||'Company news',status,b.pinned===true?1:0,me.id,now(),status==='published'?now():null,scope,me.id,b.id?1:0,id);
   const r=await auditedWrite(statement,me,status==='published'?'Published internal announcement':'Saved announcement draft',id);
   if(!r.meta.changes)throw new AppError('The announcement or your access changed. Refresh before trying again.',409);
+  await onAnnouncementSaved(me,id);
   return response({ok:true,id});
  }
  if(action==='readAnnouncement'){
@@ -147,14 +151,14 @@ export async function POST(req:Request){try{
   const id=safeText(b.id,'Time entry');if(!me.manager_id||!await first(`SELECT id FROM employees WHERE id=? AND ${s('employees')} AND active=1 AND role IN ('manager','hr_manager','admin')`,me.manager_id))throw new AppError('An active required manager must be assigned before submitting.');if(me.manager_id===me.id)throw new AppError('You cannot review your own time.',403);
   const statement=db().prepare(`UPDATE time_entries SET status='submitted',required_manager_id=(SELECT manager_id FROM employees WHERE id=? AND ${s('employees')}),reviewed_by=NULL,review_note='',updated_at=? WHERE id=? AND ${s('time_entries')} AND employee_id=? AND status IN ('draft','rejected') AND ${activeActor} AND (time_entries.required_manager_id IS NULL OR EXISTS (SELECT 1 FROM employees previous WHERE previous.id=time_entries.required_manager_id AND ${s('previous')})) AND (time_entries.reviewed_by IS NULL OR EXISTS (SELECT 1 FROM employees reviewer WHERE reviewer.id=time_entries.reviewed_by AND ${s('reviewer')})) AND EXISTS (SELECT 1 FROM employees e JOIN employees m ON m.id=e.manager_id AND ${s('m')} WHERE e.id=? AND ${s('e')} AND e.active=1 AND m.active=1 AND m.role IN ('manager','hr_manager','admin') AND m.id<>e.id)`).bind(me.id,now(),id,me.id,me.id,me.id);
   const r=await auditedWrite(statement,me,'Submitted time entry',id);
-  if(!r.meta.changes)throw new AppError('Only your own draft or returned entries can be submitted.',403);return response({ok:true});
+  if(!r.meta.changes)throw new AppError('Only your own draft or returned entries can be submitted.',403);await onTimeSubmitted(id);return response({ok:true});
  }
  if(action==='reviewTime'){
   requireManager(me);
   const id=safeText(b.id,'Time entry'),status=b.status;if(status!=='approved'&&status!=='rejected')throw new AppError('Choose approve or return.');
   const statement=db().prepare(`UPDATE time_entries SET status=?,review_note=?,reviewed_by=?,updated_at=? WHERE id=? AND ${s('time_entries')} AND required_manager_id=? AND employee_id<>? AND status='submitted' AND EXISTS (SELECT 1 FROM employees e WHERE e.id=time_entries.employee_id AND ${s('e')} AND e.active=1) AND (time_entries.reviewed_by IS NULL OR EXISTS (SELECT 1 FROM employees previous WHERE previous.id=time_entries.reviewed_by AND ${s('previous')})) AND EXISTS (SELECT 1 FROM employees reviewer WHERE reviewer.id=? AND ${s('reviewer')} AND ${loginEligibleSql('reviewer')} AND reviewer.role IN ('manager','hr_manager','admin'))`).bind(status,text(b.note,500),me.id,now(),id,me.id,me.id,me.id);
   const r=await auditedWrite(statement,me,status==='approved'?'Approved time entry':'Returned time entry',id);
-  if(!r.meta.changes)throw new AppError('Only the assigned manager may review an employee’s submitted time.',403);return response({ok:true});
+  if(!r.meta.changes)throw new AppError('Only the assigned manager may review an employee’s submitted time.',403);await onTimeReviewed(me,id);return response({ok:true});
  }
  if(action==='deleteTime'){
   const id=safeText(b.id,'Time entry');
