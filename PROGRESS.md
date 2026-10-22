@@ -97,3 +97,8 @@
 **What was done**: File storage in D1 when no R2 bucket (migration 0012 file_chunks, lib/d1-storage.ts); 10 MB check in form and 413 on server; busy labels for approve/submit/return; asset and workflow validation; report range and source notes; parallel state queries; API permission tests; QA data removed from live DB.
 **Files changed**: lib/d1-storage.ts, lib/server.ts, drizzle/0012_file_chunks.sql, app/workspace.tsx, app/operations.tsx, app/dashboard.tsx, app/api/state|operations|files routes, tests/permissions-api.test.mjs, tests/qa-fixes.test.mjs
 **Next steps**: add R2 later if wanted (set r2Bucket); consider a database region near the users; production Convex + SMTP.
+
+## 2026-10-22 - Production Convex
+**Status**: Completed
+**What was done**: Production deployment basic-ostrich-538 created (code, signing keys, SITE_URL, SMTP settings); live site switched to it; administrator bound and password set by email code. Test logins (dev issuer) no longer work.
+**Next steps**: rotate the SMTP App Password and the earlier Convex token; remove sample data before real staff; invite real employees (invites:add --prod + identity binding); boss review of Convex Auth; consider a service mailbox (SES).

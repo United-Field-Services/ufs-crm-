@@ -23,3 +23,9 @@ A service mailbox such as Amazon SES is better than Gmail for production. Withou
 5. Remove the test accounts and sample data (`docs/test-data.md`) before adding real employees. Test passwords are not created on production.
 
 Rollback: put the development addresses back and redeploy. Existing sessions end at the switch, so everyone signs in again.
+
+## Status
+Switched on 2026-10-22. The live site signs in through production Convex and the administrator set a password with the emailed code.
+The six test accounts and the sample data belong to the old development sign-in, so those logins no longer work. Remove the sample data
+(`docs/test-data.md`) before real employees are added.
+The sending mailbox settings were copied from development: change the App Password (and delete the old one in the Google account) as soon as possible.
