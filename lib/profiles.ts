@@ -1,4 +1,5 @@
 import {directoryActiveSql} from './employment-directory';
+import {invitesEnabled,loginStatus} from './invites';
 import {all,businessDate,db,first,now,uid} from './server';
 import {AppError,scopeOf,scopeSql,loginEligibleSql,isHR,requireAdmin,requireHR,safeText,validDate,type Employee} from './policy';
 import {photoMetadata} from './photos';
@@ -68,7 +69,7 @@ export async function readProfile(actor:Employee,id:string){
  const source=scopeOf(actor)==='live'?await first<{source_id:string;manager_name:string;source_status:string}>('SELECT source_id,manager_name,source_status FROM source_employee_links WHERE employee_id=?',id):null;if(source){publicProfile.imported=true;publicProfile.source_manager_name=source.manager_name;}
  Object.assign(publicProfile,await photoMetadata(id,actor));
  // HR sees whether this person can actually sign in yet (a profile alone does not give access).
- if(hr)publicProfile.login_bound=!!target.user_id||!!await first('SELECT 1 FROM employee_identities WHERE employee_id=? AND enabled=1',id);
+ if(hr){const status=await loginStatus(id);publicProfile.login_status=status;publicProfile.login_bound=status!=='none'||!!target.user_id;publicProfile.invites_enabled=invitesEnabled()&&actor.role==='admin'}
  // Never SELECT private columns for a public-only viewer, even if they manage the subject.
  if(!privateAccess){const contact=await first<{work_phone:string;work_phone_public:number;division:string;work_arrangement:string}>('SELECT CASE WHEN work_phone_public = 1 THEN work_phone ELSE \'\' END AS work_phone,work_phone_public,division,work_arrangement FROM employee_profiles WHERE employee_id = ? AND '+scopeSql(actor,'employee_profiles'),id);if(contact?.work_phone_public)publicProfile.work_phone=contact.work_phone;publicProfile.division=contact?.division??'';publicProfile.work_arrangement=contact?.work_arrangement??'';await subject(await currentActor(actor),id);return {profile:publicProfile,access:{private:false,employment:false,compensation:false,hr:false,editable:false},emergencyContacts:[],identifiers:[],compensation:[],history:[],education:[],benefits:[]}}
  const saved=await first<Fields>('SELECT * FROM employee_profiles WHERE employee_id = ? AND '+scopeSql(actor,'employee_profiles'),id);

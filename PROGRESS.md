@@ -108,3 +108,9 @@
 **What was done**: In-app inbox, bell, preferences (in-app, instant or daily-summary email, mandatory security notices), 18 notification kinds, reminders with escalation (waiting approvals, tasks, equipment, file expiry, probation/contract end, anniversaries, upcoming leave, optional Friday timesheet), email queue with retries, branded emails, tests (27 new). Pipeline verified live: a queued email was sent by the scheduled run.
 **Files changed**: lib/notifications.ts, lib/notify-events.ts, lib/reminders.ts, lib/notification-kinds.ts, lib/notification-inbox.ts, app/api/notifications/route.ts, app/notifications.tsx, app/workspace.tsx, build/sites-worker.ts, scripts/cloudflare.mjs, auth-convex/convex/http.ts, drizzle/0013_notifications.sql, docs/notifications.md, tests/notifications.test.mjs
 **Next steps**: push notifications / SMS / Slack, quiet hours, birthday notices (privacy review), a service mailbox (SES) for volume.
+
+## 2026-10-23 - Invite employees from the app
+**Status**: Completed and deployed
+**What was done**: Super admin can invite employees without commands: Add employee (role + "send invite" box) and the profile's sign-in card (send, resend, withdraw). Convex routes /invite and /invite/revoke (INVITE_SECRET); binding in employee_identities; invitation email through the notification system; status shown as Not invited / Invited / Active. 12 new tests.
+**Files changed**: lib/invites.ts, app/api/action/route.ts, lib/profiles.ts, app/employee-profile.tsx, app/workspace.tsx, auth-convex/convex/http.ts, docs/inviting-employees.md, tests/invites.test.mjs
+**Next steps**: invite the first real employees; bulk import from a spreadsheet; push/Slack alerts.

@@ -9,7 +9,7 @@ export type NotificationKind =
   | 'task_assigned' | 'task_due'
   | 'asset_assigned' | 'asset_due'
   | 'document_expiring' | 'contract_ending' | 'work_anniversary'
-  | 'announcement' | 'access_changed' | 'test';
+  | 'announcement' | 'access_changed' | 'invite' | 'test';
 
 export type KindInfo = {
   label: string;
@@ -41,10 +41,11 @@ export const NOTIFICATION_KINDS: Record<NotificationKind, KindInfo> = {
   work_anniversary: { group: 'People', label: 'A work anniversary', description: 'Yours, and your team members’, on the day.', inApp: true, email: 'off' },
   announcement: { group: 'Company', label: 'A new company announcement', description: 'Company news published by HR.', inApp: true, email: 'off' },
   access_changed: { group: 'Security', label: 'Your account access changed', description: 'Your role or account status was changed. This cannot be turned off.', inApp: true, email: 'instant', mandatory: true },
+  invite: { group: 'Security', label: 'You were invited to sign in', description: 'The email that tells you how to create your password.', inApp: true, email: 'instant', mandatory: true },
   test: { group: 'Security', label: 'Test notification', description: 'Sent when you press “Send me a test email”.', inApp: true, email: 'instant', mandatory: true },
 };
 
-export const kindList = (Object.keys(NOTIFICATION_KINDS) as NotificationKind[]).filter((kind) => kind !== 'test');
+export const kindList = (Object.keys(NOTIFICATION_KINDS) as NotificationKind[]).filter((kind) => kind !== 'test' && kind !== 'invite');
 export const isNotificationKind = (value: unknown): value is NotificationKind => typeof value === 'string' && value in NOTIFICATION_KINDS;
 export const isEmailMode = (value: unknown): value is EmailMode => value === 'instant' || value === 'daily' || value === 'off';
 

@@ -4,6 +4,7 @@ import {directoryActiveSql} from '../../../lib/employment-directory';
 import {ensureDemo} from '../../../lib/demo';
 import {photoMetadata} from '../../../lib/photos';
 import {inbox} from '../../../lib/notification-inbox';
+import {invitesEnabled} from '../../../lib/invites';
 import {AppError,isAdmin,isHR,isManager,scopeOf,scopeSql} from '../../../lib/policy';
 export const dynamic='force-dynamic';
 export async function GET(req?:Request){try{
@@ -44,5 +45,5 @@ export async function GET(req?:Request){try{
  const allowances={'Vacation':me.annual_allowance,'Sick Leave':me.sick_allowance,'WFH':me.wfh_allowance,'Bereavement':me.bereavement_allowance};
  const balances=Object.entries(allowances).map(([type,total])=>({type,total:yearly.find(e=>e.type===type)?.total??total,used:used.find(x=>x.type===type&&x.status==='approved')?.days||0,pending:used.find(x=>x.type===type&&x.status==='pending')?.days||0}));
  const [avatar,fresh,notifications]=await Promise.all([photoMetadata(me.id,me),currentEmployee(),inbox(me.id,8)]);if(fresh.id!==me.id||fresh.user_id!==me.user_id||fresh.role!==me.role||scopeOf(fresh)!==scopeOf(me))throw new AppError('Your access changed. Refresh the workspace.',403);
- return response({notifications,me:{...me,...avatar},eligibleApprovers,people,requests,teamAway,documents:docs,events,balances,year,currentYear,tasks,employeeBudgets,activity,acknowledgements,importSummary,sourceSettings,headcountSnapshot:admin?getHeadcountSnapshot(fresh,people.filter(person=>person.directory_active===1).length):null,reviewMode:true,testMode:!live});
+ return response({invitesEnabled:isAdmin(me)&&invitesEnabled(),notifications,me:{...me,...avatar},eligibleApprovers,people,requests,teamAway,documents:docs,events,balances,year,currentYear,tasks,employeeBudgets,activity,acknowledgements,importSummary,sourceSettings,headcountSnapshot:admin?getHeadcountSnapshot(fresh,people.filter(person=>person.directory_active===1).length):null,reviewMode:true,testMode:!live});
  }catch(e){return failure(e)}}

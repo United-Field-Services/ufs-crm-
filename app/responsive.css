@@ -16,6 +16,14 @@
 .notify-panel button{display:flex;justify-content:flex-start;gap:10px;align-items:flex-start;text-align:left;box-shadow:none;border:0;background:#f3f7fd;border-radius:8px;padding:10px;min-height:44px;font-size:13px;line-height:1.4;color:#23334d;cursor:pointer}
 .notify-panel button svg{flex:none;margin-top:1px;color:#2467ce}
 .notify-panel p{margin:0;padding:10px 6px;color:#738198;font-size:13px}
+.invite-check{display:flex;gap:11px;align-items:flex-start;padding:12px 14px;border:1px solid #c6d8f2;background:#f1f6fd;border-radius:10px;cursor:pointer}
+.invite-check input{width:20px;height:20px;margin-top:2px;flex:none}
+.invite-check strong{display:block;font-size:14px}
+.invite-check small{display:block;margin-top:2px;font-size:12.5px;line-height:1.4;color:#4a5b75}
+.profile-invite{margin-top:14px;padding-top:14px;border-top:1px solid #e4eaf2}
+.profile-invite h4{margin:0 0 6px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#738198}
+.profile-invite p{margin:0 0 10px;font-size:13px;line-height:1.45}
+.profile-invite>div{display:flex;gap:8px;flex-wrap:wrap}
 .upload-zone{position:relative}
 .upload-zone input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .upload-zone span{overflow-wrap:anywhere}

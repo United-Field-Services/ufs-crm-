@@ -1,4 +1,5 @@
 import {all,currentEmployee,db,first,now,uid,response,failure} from '../../../lib/server';
+import {inviteEmployee,withdrawInvite} from '../../../lib/invites';
 import {onLeaveRequested,onLeaveReviewed,onLeaveCancelled,onTasksAssigned,onAccessChanged} from '../../../lib/notify-events';
 import {AppError,loginEligibleSql,employmentEligibleSql,assignableRoles,requireAdmin,requireHR,requireManager,safeText,validDate,workingDays,sameOrigin,jsonBody,scopeOf,scopeSql,type Employee} from '../../../lib/policy';
 export const dynamic='force-dynamic';
@@ -59,6 +60,14 @@ export async function POST(req:Request){try{
    db().prepare(`UPDATE time_entries SET required_manager_id=? WHERE employee_id=? AND status='submitted' AND ${scopeSql(me,'time_entries')} AND ${employeeRef(me,'time_entries.employee_id')} AND (required_manager_id IS NULL OR ${employeeRef(me,'time_entries.required_manager_id')}) AND (reviewed_by IS NULL OR ${employeeRef(me,'time_entries.reviewed_by')}) AND EXISTS (SELECT 1 FROM audit WHERE id=? AND ${scopeSql(me,'audit')})`).bind(manager,id,auditId)
   ]);if(!results[0].meta.changes)throw new AppError('Account access or the manager assignment changed. Refresh and try again.',409);await onAccessChanged(me,id,String(role),active);return response({ok:true,message:'Account updated. No invitation sent or Site sharing changed.'});
  }
+ if(action==='inviteEmployee'){
+  requireAdmin(me);const id=safeText(b.employeeId,'Employee'),result=await inviteEmployee(me,id);
+  return response({ok:true,message:result.emailed?(result.resent?'Invite sent again.':'Invite sent. They will get an email with the steps to create their password.'):'The sign-in is ready, but the email could not be sent. Ask them to open the sign-in page and choose "Forgot your password?".'});
+ }
+ if(action==='withdrawInvite'){
+  requireAdmin(me);await withdrawInvite(me,safeText(b.employeeId,'Employee'));
+  return response({ok:true,message:'Invite withdrawn. They no longer have a sign-in.'});
+ }
  if(action==='updateBudgets'){
   requireHR(me);const id=safeText(b.employeeId,'Employee'),year=Number(b.year);if(!Number.isInteger(year)||year<2020||year>2100)throw new AppError('Choose a valid allowance year.');
   if(!await first(`SELECT id FROM employees WHERE id = ? AND active = 1 AND ${scopeSql(me,'employees')}`,id))throw new AppError('Employee not found.',404);
@@ -80,7 +89,16 @@ export async function POST(req:Request){try{
   if(!result.meta.changes)throw new AppError('HR access changed. Refresh and try again.',403);
   // A new person starts in their department's division; HR can change it on the Job tab.
   await db().prepare("INSERT OR IGNORE INTO employee_profiles (employee_id,division,employment_status,updated_at,data_scope) SELECT ?,?,'Active',?,? WHERE EXISTS (SELECT 1 FROM employees WHERE id=?)").bind(id,department,now(),scope,id).run();
-  return response({ok:true,id,message:'Profile created. No invitation sent. Site access must be granted separately.'});
+  let message='Profile created. No invitation sent. Site access must be granted separately.';
+  if(me.role==='admin'){
+   const role=typeof b.role==='string'&&(assignableRoles as readonly string[]).includes(b.role)?b.role:'employee';
+   if(role!=='employee')await db().prepare("UPDATE employees SET role=? WHERE id=? AND role='employee' AND data_scope=?").bind(role,id,scope).run();
+   if(b.invite===true||b.invite==='on'){
+    try{const sent=await inviteEmployee(me,id);message=sent.emailed?'Profile created and invite sent. They will get an email with the steps to create their password.':'Profile created. The sign-in is ready but the email could not be sent; ask them to use "Forgot your password?" on the sign-in page.'}
+    catch(error){message='Profile created, but the invite was not sent: '+(error instanceof AppError?error.message:'please try again from their profile.')}
+   }
+  }
+  return response({ok:true,id,message});
  }
  if(action==='addEvent'){
   requireHR(me);const id=uid(),kind=b.kind==='Holiday'?'Holiday':'Company event';const r=await auditedWrite(db().prepare(`INSERT INTO events (id,title,date,kind,location,created_by,data_scope) SELECT ?,?,?,?,?,?,? WHERE ${activeHR(me)}`).bind(id,safeText(b.title,'Event name'),validDate(b.date),kind,safeText(b.location||'All locations','Location'),me.id,scope,me.id,me.user_id),me,'Added calendar event',id);if(!r.meta.changes)throw new AppError('HR access changed. Refresh and try again.',403);return response({ok:true});

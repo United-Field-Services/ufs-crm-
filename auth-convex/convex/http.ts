@@ -48,4 +48,55 @@ http.route({
   }),
 });
 
+// Invite someone from UFS People's admin screen. Only the UFS People server knows INVITE_SECRET (set here and on the
+// Cloudflare Worker); it is separate from NOTIFY_SECRET because it can create accounts. The account is created without a
+// usable password: the person chooses their own with "Forgot your password?" and an emailed code.
+function inviteRequest(request: Request) {
+  const expected = process.env.INVITE_SECRET;
+  const given = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  return Boolean(expected) && sameSecret(given, expected as string);
+}
+async function emailFrom(request: Request) {
+  try {
+    const body = (await request.json()) as { email?: unknown };
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    return EMAIL.test(email) && email.length <= 254 ? email : null;
+  } catch { return null; }
+}
+
+http.route({
+  path: "/invite",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!inviteRequest(request)) return json({ error: "Not allowed" }, 401);
+    const email = await emailFrom(request);
+    if (!email) return json({ error: "Invalid address" }, 400);
+    try {
+      const result = await ctx.runAction(internal.invites.add, { email });
+      const who = await ctx.runQuery(internal.invites.whoIs, { email });
+      if (!who) return json({ error: "Could not create the account" }, 502);
+      return json({ ok: true, userId: who.userId, created: result.accountCreated }, 200);
+    } catch {
+      return json({ error: "Could not invite" }, 502);
+    }
+  }),
+});
+
+// Withdraw an invite before the person has ever signed in: removes the invite, the account and its sessions.
+http.route({
+  path: "/invite/revoke",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!inviteRequest(request)) return json({ error: "Not allowed" }, 401);
+    const email = await emailFrom(request);
+    if (!email) return json({ error: "Invalid address" }, 400);
+    try {
+      await ctx.runMutation(internal.invites.remove, { email });
+      return json({ ok: true }, 200);
+    } catch {
+      return json({ error: "Could not withdraw" }, 502);
+    }
+  }),
+});
+
 export default http;

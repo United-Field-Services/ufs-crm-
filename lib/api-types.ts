@@ -69,7 +69,7 @@ export type SelectedRecord = { id: string; name: string; department?: string; de
 
 export type NotificationSummary = { unread: number; items: { id: string; kind: string; title: string; body: string; link: string; created_at: string; read_at: string | null }[] };
 export type StateData = {
-  notifications?: NotificationSummary; testMode?: boolean; me: MeRow; eligibleApprovers?: ApproverRow[]; people: PersonRow[]; requests: LeaveRequestRow[];
+  notifications?: NotificationSummary; invitesEnabled?: boolean; testMode?: boolean; me: MeRow; eligibleApprovers?: ApproverRow[]; people: PersonRow[]; requests: LeaveRequestRow[];
   teamAway: TeamAwayRow[]; documents: DocumentRow[]; events: EventRow[]; balances: BalanceRow[]; tasks: TaskRow[];
   activity: ActivityRow[]; year: number; currentYear?: number; employeeBudgets: BudgetRow[]; acknowledgements: AcknowledgementRow[];
   importSummary?: ImportSummary | null; sourceSettings?: SourceSettings | null;
