@@ -66,7 +66,7 @@ const personalFields: Field[] = [
   { name: 'nationality', label: 'Nationality', maxLength: 100 },
   { name: 'citizenship', label: 'Citizenship', maxLength: 100 },
   { name: 'languages', label: 'Languages', hint: 'Separate languages with commas.', placeholder: 'English, Spanish', maxLength: 300 },
-  { name: 'linkedin', label: 'LinkedIn profile', type: 'url', placeholder: 'https://www.linkedin.com/in/…', maxLength: 300 },
+  { name: 'linkedin', label: 'LinkedIn profile', type: 'url', placeholder: 'https://www.linkedin.com/in/…', maxLength: 300, pattern: String.raw`https://([A-Za-z0-9-]+\.)?linkedin\.com(/.*)?`, hint: 'Use a https://linkedin.com profile address.' },
   { name: 'bio', label: 'About this person', type: 'textarea', wide: true, maxLength: 2000, hint: 'Private profile notes. Do not enter identity numbers, medical or banking information.' },
 ];
 const contactFields: Field[] = [
@@ -273,7 +273,7 @@ function ProfileSession({ employeeId, me, people, onSaved, onManageAccess, onMan
       const next = parseResponse(result);
       if (!alive.current) return true;
       setData(next); setRevision(value => value + 1); setDirty(false); setPendingTab(null); setNotice(message);
-      try { await onSaved(); } catch { if (alive.current) setNotice(`${message} The directory could not refresh; reopen the directory to see the latest changes.`); }
+      Promise.resolve().then(onSaved).catch(() => { if (alive.current) setNotice(`${message} The directory could not refresh; reopen the directory to see the latest changes.`); });
       return true;
     } catch (cause) {
       if (alive.current) { setError(cause instanceof Error ? cause.message : 'Your changes could not be saved. Please try again.'); statusRef.current?.focus(); }
@@ -305,6 +305,7 @@ function ProfileSession({ employeeId, me, people, onSaved, onManageAccess, onMan
   const manager = people.find(person => text(person.id) === text(profile.manager_id));
   const managerName = text(profile.manager_name) || text(manager?.name) || 'Not assigned';
   const loginActive = booleanFlag(profile.active);
+  const loginBound = booleanFlag(profile.login_bound);
   // Directory classification comes from the server's lifecycle/source checks.
   // Neither login activation nor a defaulted profile status establishes membership.
   const currentEmployee = booleanFlag(sourcePerson.directory_active);
@@ -332,7 +333,7 @@ function ProfileSession({ employeeId, me, people, onSaved, onManageAccess, onMan
       <div className="profile-header-status">
         {currentEmployee !== null && <span className={`profile-status profile-directory-status${currentEmployee ? '' : ' profile-status-inactive'}`}><i />{currentEmployee ? 'Current employee' : 'Former employee'}</span>}
         {employmentStatus && <span className="profile-view-label profile-employment-status">Employment status: {employmentStatus}</span>}
-        {loginActive !== null && <span className={`profile-status profile-login-status${loginActive ? '' : ' profile-status-inactive'}`}><i />Login: {loginActive ? 'Active' : 'Inactive'}</span>}
+        {loginActive !== null && <span className={`profile-status profile-login-status${loginActive && loginBound !== false ? '' : ' profile-status-inactive'}`}><i />Login: {!loginActive ? 'Inactive' : loginBound === false ? 'Not set up yet' : 'Active'}</span>}
         <span className="profile-view-label"><ShieldCheck size={12} />{access.hr ? 'HR view' : isSelf ? 'Your private profile' : 'Directory view'}</span>
       </div>
     </header>

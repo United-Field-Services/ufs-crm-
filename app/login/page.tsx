@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { standaloneConfigured } from '../../lib/standalone-auth';
+import { SECTION_PATHS } from '../../lib/sections';
 import LoginForm from './login-form';
 import './login.css';
 
@@ -13,13 +14,16 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ reason?: string | string[] }>;
+  searchParams?: Promise<{ reason?: string | string[]; next?: string | string[] }>;
 }) {
   const query = await searchParams;
   const allowedReasons = ['expired', 'access_denied', 'signed_out'];
   const reason = typeof query?.reason === 'string' && allowedReasons.includes(query.reason)
     ? query.reason
     : undefined;
+
+  // Only the workspace's own section addresses are accepted as a place to go after signing in.
+  const next = typeof query?.next === 'string' && Object.values(SECTION_PATHS).includes(query.next) ? query.next : undefined;
 
   return (
     <main className="ufs-login">
@@ -47,7 +51,7 @@ export default async function LoginPage({
                 <rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
               </svg>
             </div>
-            <LoginForm authEnabled={standaloneConfigured()} reason={reason} />
+            <LoginForm authEnabled={standaloneConfigured()} reason={reason} next={next} />
           </div>
           <p className="ufs-login-footer">United Field Services <span aria-hidden="true">·</span> UFS People</p>
         </section>

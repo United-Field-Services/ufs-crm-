@@ -134,14 +134,15 @@ test('session-disabled response fails closed', async () => {
   assert.deepEqual(calls.map(item => item.path), ['/api/auth/session']);
 });
 
-test('session check blocks credential submission until resolved', async () => {
+test('the form is usable while the first session check is still running', async () => {
   const deferred = pending();
   responses.set('/api/auth/session', deferred.promise);
   await mount();
-  assert.equal(query('#ufs-email').disabled, true);
-  assert.match(container.textContent, /Checking your session/);
+  assert.equal(query('#ufs-email').disabled, false);
+  assert.equal(query('#ufs-password').disabled, false);
+  assert.doesNotMatch(container.textContent, /Checking your session/);
   await submit();
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 1, 'an empty form is not submitted');
   await act(async () => deferred.resolve(reply({ enabled: true, authenticated: false })));
   assert.equal(query('#ufs-email').disabled, false);
 });

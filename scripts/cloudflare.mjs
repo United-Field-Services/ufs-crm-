@@ -34,6 +34,9 @@ if (command === "config") {
   // r2Bucket may be null: the app then runs without file uploads (R2 needs a payment method on file).
   config.r2_buckets = settings.r2Bucket ? [{ binding: "BUCKET", bucket_name: settings.r2Bucket }] : [];
   // UFS_SELF_HOSTED makes the worker discard forged ChatGPT identity headers.
+  // Run the worker next to the database (D1 is in eastern North America). Each request makes many database
+  // calls, so running far from D1 made pages take 5 s; set "placement" in cloudflare-deploy.json to change it.
+  config.placement = settings.placement ?? { region: "aws:us-east-1" };
   config.vars = { ...settings.vars, UFS_SELF_HOSTED: "true" };
   const target = path.join(root, "dist/server/wrangler.deploy.json");
   writeFileSync(target, JSON.stringify(config, null, 2));

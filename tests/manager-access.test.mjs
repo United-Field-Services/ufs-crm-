@@ -279,6 +279,7 @@ test('a super admin can choose the required approver of a new employee', async (
 test('without a choice the creator stays the approver, for admin and HR alike', async () => {
   assert.equal((await act(owner, newHire())).status, 200);
   assert.equal(hireRow().manager_id, owner.id);
+  f.run('DELETE FROM employee_profiles WHERE employee_id IN (SELECT id FROM employees WHERE email = ?)', 'new-hire@example.test');
   f.run('DELETE FROM employees WHERE email = ?', 'new-hire@example.test');
   assert.equal((await act(hr, newHire({ managerId: '' }))).status, 200);
   assert.equal(hireRow().manager_id, hr.id);
