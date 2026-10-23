@@ -30,7 +30,7 @@ before(async () => {
     }
     if (request.url.startsWith('/storage/v1/bucket/ufs-files')) return send(200, { id: 'ufs-files', public: false });
     if (request.url.startsWith('/auth/v1/admin/users') && request.method === 'GET') return send(200, { users });
-    if (request.url.startsWith('/auth/v1/admin/users') && request.method === 'POST') { const user = { id: '11111111-2222-4333-8444-555555555555', email: JSON.parse(body).email }; users.push(user); return send(200, user); }
+    if (request.url.startsWith('/auth/v1/admin/users') && request.method === 'POST') { const email = JSON.parse(body).email; if (users.some(user => user.email === email)) return send(422, { msg: 'email_exists' }); const user = { id: '11111111-2222-4333-8444-555555555555', email }; users.push(user); return send(200, user); }
     if (request.url.startsWith('/functions/v1/send-mail')) return send(400, { error: 'Invalid address' });
     send(404, {});
   });
@@ -66,8 +66,21 @@ test('first-admin: creates the sign-in without a password and binds it to the ad
   assert.equal(binding.issuer, `${url}/auth/v1`);
   assert.equal(Number(binding.enabled), 1);
   const again = await run('first-admin', '--email', 'boss@example.test');
-  assert.equal(again.code, 0, again.out);
-  assert.equal((await pg.query('select count(*)::int n from ufs.employee_identities')).rows[0].n, 1, 'running it twice binds once');
+  assert.notEqual(again.code, 0, 'the account now exists, so a second run is refused rather than attaching again');
+  assert.match(again.out, /already has a Supabase sign-in account/);
+  assert.equal((await pg.query("select count(*)::int n from ufs.employee_identities where employee_id = 'boss1'")).rows[0].n, 1, 'still bound once');
+});
+
+test('first-admin will not attach to an account that already exists unless told to', async () => {
+  users.push({ id: '99999999-2222-4333-8444-555555555555', email: 'other@example.test' });
+  await pg.exec("insert into ufs.employees (id,email,name,title,department,location,employment,hire_date,role,created_at) values ('boss2','other@example.test','Other Admin','t','d','l','Full-Time','2026-01-01','admin','2026-01-01')");
+  const refused = await run('first-admin', '--email', 'other@example.test');
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.out, /already has a Supabase sign-in account/);
+  assert.equal((await pg.query("select count(*)::int n from ufs.employee_identities where employee_id = 'boss2'")).rows[0].n, 0, 'nothing was attached');
+  const linked = await run('first-admin', '--email', 'other@example.test', '--link-existing');
+  assert.equal(linked.code, 0, linked.out);
+  assert.equal((await pg.query("select subject from ufs.employee_identities where employee_id = 'boss2'")).rows[0].subject, '99999999-2222-4333-8444-555555555555');
 });
 
 test('first-admin refuses an address with no administrator profile, and everything refuses without the key', async () => {

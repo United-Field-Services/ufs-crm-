@@ -43,9 +43,9 @@ async function supabaseCreate(email:string):Promise<string>{
  const created=await call(`${SUPABASE_URL}/auth/v1/admin/users`,{method:'POST',headers:supabaseHeaders(),body:JSON.stringify({email,email_confirm:true})});
  if(created.ok){const user=await created.json() as {id?:string};if(user.id)return user.id}
  else if(created.status===422||created.status===409){
-  // The address already has an account in this project (for example from an earlier setup): link to it instead of failing.
-  const listed=await call(`${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`,{headers:supabaseHeaders()});
-  if(listed.ok){const body=await listed.json() as {users?:{id:string;email?:string}[]};const match=body.users?.find(user=>user.email?.toLowerCase()===email);if(match)return match.id}
+  // Never attach an employee to an account that already exists: whoever created it (for example someone who signed up with this
+  // address first) may know its password. The project owner must look at it and delete it if it should not exist.
+  throw new AppError('This email already has a sign-in account in Supabase. Ask the project owner to review it (Authentication, Users) and delete it if it should not exist, then invite again.',409);
  }
  throw new AppError('The sign-in service could not create the account. Try again, or check its settings.',502);
 }

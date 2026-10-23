@@ -99,3 +99,10 @@ test('every table has row-level security switched on and no policy', async () =>
   assert.equal((await db.query("select count(*)::int n from pg_policies where schemaname = 'ufs'")).rows[0].n, 0);
   assert.equal((await db.query("select count(*)::int n from information_schema.tables where table_schema = 'public'")).rows[0].n, 0, 'no data tables in the exposed schema');
 });
+
+test('negative and large numbers cannot merge with the text before them or change the statement', async () => {
+  const [answer] = await batch([{ sql: 'SELECT 5-$1 AS a, 5- $2 AS b, $3 AS c', params: [-3, -2.5, 12345678901234] }]);
+  assert.deepEqual(answer.rows[0], { a: 8, b: 7.5, c: 12345678901234 });
+  const [second] = await batch([{ sql: 'SELECT $1 AS first -- comment, $2 AS second', params: [-1, -2] }]);
+  assert.deepEqual(second.rows[0], { first: -1 });
+});

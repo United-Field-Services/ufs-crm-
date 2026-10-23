@@ -51,7 +51,8 @@ begin
       value := params -> (idx - 1);
       literal := case jsonb_typeof(value)
         when 'null' then 'NULL'
-        when 'number' then value #>> '{}'
+        -- A JSON number is always plain digits; the brackets keep a negative value from joining the text before it ("a-" + "-5" is not a comment).
+        when 'number' then '(' || (value #>> '{}') || ')'
         when 'boolean' then case when (value #>> '{}')::boolean then '1' else '0' end
         when 'string' then quote_literal(value #>> '{}')
         else null end;

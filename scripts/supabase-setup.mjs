@@ -16,9 +16,13 @@ const serviceKey = process.env.UFS_SUPABASE_SERVICE_KEY;
 const publishableKey = process.env.UFS_SUPABASE_PUBLISHABLE_KEY;
 const [command, ...rest] = process.argv.slice(2);
 const option = (name) => { const at = rest.indexOf(`--${name}`); return at >= 0 ? rest[at + 1] : undefined; };
-const fail = (message) => { console.error(`\n✖ ${message}`); process.exit(1); };
+// fail() stops the run by throwing, so the program ends on its own and sets the exit code (a hard exit can crash Node on Windows).
+class Stop extends Error {}
+const fail = (message) => { console.error(`\n✖ ${message}`); process.exitCode = 1; throw new Stop(message); };
 const pass = (message) => console.log(`✔ ${message}`);
 const expect = (condition, good, bad) => { if (condition) pass(good); else fail(bad); };
+
+try {
 if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url) && !(process.env.UFS_SETUP_TEST === "1" && /^http:\/\/127\.0\.0\.1:\d+$/.test(url))) fail("UFS_SUPABASE_URL must look like https://<project>.supabase.co");
 if (!serviceKey) fail("Set UFS_SUPABASE_SERVICE_KEY in this terminal first (see the top of this file). Never paste it into a chat.");
 
@@ -67,10 +71,13 @@ if (command === "check") {
   const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers, body: JSON.stringify({ email, email_confirm: true }) });
   if (created.ok) userId = (await created.json()).id;
   else {
+    // An account that already exists may have been made by someone else who knows its password, so it is only linked
+    // when you say so on purpose. After linking, choose a new password with "Forgot your password?": that also signs out anything older.
+    if (!rest.includes("--link-existing")) fail(`${email} already has a Supabase sign-in account (HTTP ${created.status}). Check it in the dashboard (Authentication, Users). If it is really yours, run again with --link-existing; otherwise delete it there and run this again.`);
     const listed = await (await fetch(`${url}/auth/v1/admin/users?page=1&per_page=1000`, { headers })).json();
     userId = listed.users?.find((user) => user.email?.toLowerCase() === email)?.id;
-    if (!userId) fail(`Supabase Auth refused to create ${email} (HTTP ${created.status}).`);
-    console.log("• this address already had a Supabase account; linking to it");
+    if (!userId) fail(`Could not find the existing account for ${email}.`);
+    console.log("• linking to the account that already existed; set a new password with \"Forgot your password?\" straight away");
   }
   await sql([{
     sql: "INSERT OR IGNORE INTO employee_identities (id,issuer,subject,employee_id,enabled,created_at,approved_by) VALUES (?,?,?,?,1,?,?)",
@@ -78,3 +85,6 @@ if (command === "check") {
   }]);
   pass(`${email} is the first administrator. Open the site, choose "Forgot your password?" and set a password.`);
 } else fail("Usage: node scripts/supabase-setup.mjs check | first-admin --email <address>");
+} catch (error) {
+  if (!(error instanceof Stop)) { console.error(error instanceof Error ? error.message : error); process.exitCode = 1; }
+}

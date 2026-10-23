@@ -31,6 +31,8 @@ behaves, and that the main pages' server code works end to end on Postgres.
 3. **Check the project's sign-in settings** (the boss's reviewed setup, `docs/password-reset-setup-and-testing.md`):
    - Authentication, URL Configuration: add the exact redirect `https://ufs-people.unitedffs.workers.dev/reset-password` (no wildcards).
    - Authentication, Email Templates, Reset password: link must be `{{ .RedirectTo }}?token_hash={{ .TokenHash }}`.
+   - Authentication, Sign In / Providers: switch OFF "Allow new users to sign up". Accounts are created only by the app's invite (admin API), so nobody can register an address in advance and later be mistaken for an employee.
+   - Authentication, Users: look at who is already there. An address that already has an account is never attached automatically; delete accounts that should not exist.
    - Custom SMTP (the default sender is limited to a few emails an hour).
    - The session-check function from `docs/supabase-session-check.sql` must exist (it likely does).
 4. **Deploy the email function** (needs the Supabase CLI, `npm i -g supabase`, `supabase login`):

@@ -45,13 +45,14 @@ test('inviting through Supabase Auth: account created without a password, bound 
   assert.ok(f.get("SELECT 1 x FROM audit WHERE action = 'Invited to sign in'"));
 });
 
-test('an address that already has a Supabase account is linked, not duplicated', async () => {
-  await withFetch(url => url.includes('?page=') ? Response.json({ users: [{ id: 'other', email: 'x@y.z' }, { id: USER_ID, email: 'newbie@example.test' }] }) : Response.json({ msg: 'exists' }, { status: 422 }), async calls => {
+test('an address that already has a Supabase account is never linked automatically', async () => {
+  await withFetch(() => Response.json({ msg: 'exists' }, { status: 422 }), async calls => {
     const response = await act(admin, { action: 'inviteEmployee', employeeId: person.id });
-    assert.equal(response.status, 200, await response.clone().text());
-    assert.equal(calls.length, 2);
+    assert.equal(response.status, 409);
+    assert.match((await response.json()).error, /already has a sign-in account/);
+    assert.equal(calls.length, 1, 'no account list was read to find one to attach');
   });
-  assert.equal(f.get('SELECT subject FROM employee_identities').subject, USER_ID);
+  assert.equal(f.rows('SELECT * FROM employee_identities').length, 0);
 });
 
 test('withdrawing removes the Supabase account before first sign-in', async () => {
