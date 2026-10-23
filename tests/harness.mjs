@@ -1,7 +1,7 @@
 // Test-only Worker adapters. Policy and SQL run unchanged. QA business-route
 // fixtures explicitly replace principal acquisition; real auth has separate tests.
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { readFileSync, readdirSync } from 'node:fs';
+import { appendFileSync, readFileSync, readdirSync } from 'node:fs';
 import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -73,14 +73,16 @@ export function fixture() {
   else sqlite.exec(fallbackSchema);
   const storage = new Map();
   const bucketReads = [];
+  // With UFS_CAPTURE_SQL=<file>, every statement the app runs is written there; tests/postgres-translation.test.mjs replays them on Postgres.
+  const capture = (sql, args) => { if (process.env.UFS_CAPTURE_SQL) appendFileSync(process.env.UFS_CAPTURE_SQL, JSON.stringify({ sql, args }) + '\n'); };
   function prepare(sql) {
     let args = [];
     return {
       sql, // Test-only statement metadata for pausing before an atomic D1 batch.
       bind(...values) { args = values; return this; },
-      async all() { return { results: sqlite.prepare(sql).all(...args) }; },
-      async first() { return sqlite.prepare(sql).get(...args) || null; },
-      async run() { const result = sqlite.prepare(sql).run(...args); return { success: true, meta: { changes: Number(result.changes) } }; },
+      async all() { capture(sql, args); return { results: sqlite.prepare(sql).all(...args) }; },
+      async first() { capture(sql, args); return sqlite.prepare(sql).get(...args) || null; },
+      async run() { capture(sql, args); const result = sqlite.prepare(sql).run(...args); return { success: true, meta: { changes: Number(result.changes) } }; },
     };
   }
   // D1 serializes transactional batches. Queue batches so concurrency tests do not

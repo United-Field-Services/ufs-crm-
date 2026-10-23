@@ -3,6 +3,7 @@ import {headers} from 'next/headers';
 import {AppError,isEmployeeRole,jsonBody,loginEligibleSql,sameOrigin,scopeOf,TEST_SCOPE,type Employee} from './policy';
 import {authFailure,authResult,authStatus,rateLimit,readAuthCookies,revokePresentedSession,tokenFingerprint} from './standalone-auth';
 import {convexConfigured,convexUrls} from './auth-provider';
+import {database as pickDatabase} from './database';
 
 // Convex Auth as a sign-in provider. The browser never talks to Convex: this server signs people in
 // through Convex's HTTP API, verifies the signed tokens it gets back, and keeps them in HttpOnly
@@ -15,7 +16,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const SUBJECT=/^([A-Za-z0-9_-]{16,64})\|([A-Za-z0-9_-]{16,64})$/;
 const unavailable=()=>new AppError('Sign-in is temporarily unavailable.',503);
 const signInAgain=()=>new AppError('Sign in again.',401);
-function database(){if(!env.DB)throw unavailable();return env.DB}
+function database(){try{return pickDatabase()}catch{throw unavailable()}}
 
 // ---------- Convex HTTP API ----------
 type Tokens={token:string;refreshToken:string};

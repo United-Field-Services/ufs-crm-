@@ -4,6 +4,7 @@ import {headers} from 'next/headers';
 import {createClient,type Session,type SupabaseClient,type User} from '@supabase/supabase-js';
 import {AppError,scopeOf,TEST_SCOPE,isEmployeeRole,loginEligibleSql,employmentEligibleSql,type Employee} from './policy';
 import {authProvider,convexConfigured} from './auth-provider';
+import {database as pickDatabase} from './database';
 
 export const SUPABASE_URL='https://ycswaipyuonxwyalkits.supabase.co';
 export const SUPABASE_ISSUER=SUPABASE_URL+'/auth/v1';
@@ -13,7 +14,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const MAX_AGE=12*60*60,IDLE_SECONDS=30*60;
 export function standaloneMode(){return env.UFS_AUTH_MODE==='pilot'||env.UFS_AUTH_MODE==='standalone'}
 export function standaloneConfigured(){if(authProvider()==='convex')return convexConfigured();return standaloneMode()&&env.UFS_SUPABASE_URL===SUPABASE_URL&&!!env.UFS_SUPABASE_PUBLISHABLE_KEY?.startsWith('sb_publishable_')&&env.UFS_SUPABASE_SESSION_CHECK==='enabled'&&(!publicPilotEnabled()||publicPilotDeadline()!==null)}
-function database(){if(!env.DB)throw new AppError('Sign-in is temporarily unavailable.',503);return env.DB}
+function database(){try{return pickDatabase()}catch{throw new AppError('Sign-in is temporarily unavailable.',503)}}
 export function newAuthClient(accessToken?:string):SupabaseClient{
  if(!standaloneConfigured())throw new AppError('Employee sign-in is not available yet.',503);
  return createClient(SUPABASE_URL,env.UFS_SUPABASE_PUBLISHABLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,flowType:'pkce'},global:{...(accessToken?{headers:{Authorization:`Bearer ${accessToken}`}}:{}),fetch:(input,init)=>fetch(input,{...init,cache:'no-store'})}});
@@ -119,7 +120,7 @@ export async function rateLimit(req:Request,identity:string,kind='login'){
  for(const [label,value,limit] of [['network',ip,40],['identity',identity,10]] as const){
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(`${kind}:${label}:${value}`));
   const key=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
-  await database().prepare('INSERT INTO auth_rate_limits (key,window_start,attempts) VALUES (?,?,1) ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN window_start=? THEN attempts+1 ELSE 1 END,window_start=?').bind(key,window,window,window).run();
+  await database().prepare('INSERT INTO auth_rate_limits (key,window_start,attempts) VALUES (?,?,1) ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN auth_rate_limits.window_start=? THEN auth_rate_limits.attempts+1 ELSE 1 END,window_start=?').bind(key,window,window,window).run();
   const row=await database().prepare('SELECT attempts FROM auth_rate_limits WHERE key=? AND window_start=?').bind(key,window).first<{attempts:number}>();
   if(!row||row.attempts>limit)throw new AppError('Too many sign-in attempts. Please try again later.',429);
  }

@@ -1,8 +1,8 @@
-import {env} from 'cloudflare:workers';
 import {AppError,isEmployeeRole,jsonBody,loginEligibleSql,sameOrigin,scopeOf,TEST_SCOPE,type Employee} from './policy';
 import {authFailure,authResult,rateLimit} from './standalone-auth';
 import {convexRecoveryConfigured,convexUrls} from './auth-provider';
 import {convexCall,tokensFrom,verifyConvexToken} from './convex-auth';
+import {database} from './database';
 
 // Password reset with Convex Auth: an 8-digit code is emailed (through Resend) and the person enters it
 // together with a new password. Off by default, like the Supabase reset: it needs UFS_PASSWORD_RECOVERY=enabled.
@@ -21,8 +21,8 @@ async function input(req:Request){
 const readEmail=(value:unknown)=>typeof value==='string'?value.trim().toLowerCase():'';
 // Only an existing employee with an approved sign-in binding can reset. The profile email must match the Convex sign-in email.
 async function eligibleByEmail(email:string){
- const urls=convexUrls();if(!env.DB||!urls)throw new AppError('Password reset is temporarily unavailable.',503);
- const row=await env.DB.prepare(`SELECT e.*,i.subject FROM employee_identities i JOIN employees e ON e.id=i.employee_id WHERE i.issuer=? AND i.enabled=1 AND lower(e.email)=? AND ${loginEligibleSql('e')} LIMIT 1`).bind(urls.site,email).first<Employee&{subject:string}>();
+ const urls=convexUrls();if(!urls)throw new AppError('Password reset is temporarily unavailable.',503);
+ const row=await database().prepare(`SELECT e.*,i.subject FROM employee_identities i JOIN employees e ON e.id=i.employee_id WHERE i.issuer=? AND i.enabled=1 AND lower(e.email)=? AND ${loginEligibleSql('e')} LIMIT 1`).bind(urls.site,email).first<Employee&{subject:string}>();
  if(!row||!isEmployeeRole(row.role)||scopeOf(row)===TEST_SCOPE)return null;
  return row;
 }
@@ -58,9 +58,9 @@ export async function completeConvexReset(req:Request){try{
  if(verified.userId!==employee.subject){await endSession();throw new AppError(INVALID_CODE,400)}
  // Advance the cutoff and revoke every app session for this account. Sign-in sessions registered before this moment stay dead.
  const now=Math.floor(Date.now()/1000),urls=convexUrls()!;
- await env.DB!.batch([
-  env.DB!.prepare('INSERT INTO auth_password_resets (issuer,subject,not_before,locked) VALUES (?,?,?,0) ON CONFLICT(issuer,subject) DO UPDATE SET not_before=MAX(not_before,excluded.not_before),locked=0').bind(urls.site,verified.userId,now),
-  env.DB!.prepare('UPDATE auth_sessions SET revoked_at=? WHERE issuer=? AND subject=? AND revoked_at IS NULL').bind(now,urls.site,verified.userId),
+ await database().batch([
+  database().prepare('INSERT INTO auth_password_resets (issuer,subject,not_before,locked) VALUES (?,?,?,0) ON CONFLICT(issuer,subject) DO UPDATE SET not_before=MAX(auth_password_resets.not_before,excluded.not_before),locked=0').bind(urls.site,verified.userId,now),
+  database().prepare('UPDATE auth_sessions SET revoked_at=? WHERE issuer=? AND subject=? AND revoked_at IS NULL').bind(now,urls.site,verified.userId),
  ]);
  // The reset created one new session; end it so the person must sign in with the new password.
  const signedOut=await endSession();

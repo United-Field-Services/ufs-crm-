@@ -1,5 +1,6 @@
 import {env} from 'cloudflare:workers';
 import {AppError,TEST_SCOPE,loginEligibleSql} from './policy';
+import {database as pickDatabase} from './database';
 
 // Optional, exact-account provisioning. Configuration is absent by default and
 // may only be installed after verification and action-time approval. No password,
@@ -27,8 +28,8 @@ export async function provisionApprovedTestProfiles(issuer:string,subject:string
  if(issuer!=='https://ycswaipyuonxwyalkits.supabase.co/auth/v1')throw new AppError('Your approved test identity needs administrator review.',403);
  const expected=subject===config.employeeSubject?config.employeeEmail:subject===config.hrSubject?config.hrEmail:null;
  if(!expected||verifiedEmail.toLowerCase()!==expected)throw new AppError('Your approved test identity needs administrator review.',403);
- if(!env.DB)throw new AppError('Sign-in is temporarily unavailable.',503);
- const database=env.DB,stamp=new Date().toISOString();
+ let database:D1Database;try{database=pickDatabase()}catch{throw new AppError('Sign-in is temporarily unavailable.',503)}
+ const stamp=new Date().toISOString();
  const profiles=[
   {id:QA_HR_ID,subject:config.hrSubject,email:config.hrEmail,name:'QA HR Manager',role:'hr_manager',manager:null},
   {id:QA_EMPLOYEE_ID,subject:config.employeeSubject,email:config.employeeEmail,name:'QA Employee',role:'employee',manager:QA_HR_ID},

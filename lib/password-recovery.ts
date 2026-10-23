@@ -1,4 +1,5 @@
 import {env} from 'cloudflare:workers';
+import {database} from './database';
 import {AppError,jsonBody,sameOrigin,loginEligibleSql,isEmployeeRole,scopeOf,TEST_SCOPE,type Employee} from './policy';
 import {authResult,authFailure,newAuthClient,rateLimit,SUPABASE_ISSUER,publicPilotEnabled,approvedPilotSubject,approvedTestSubjectRole,standaloneConfigured} from './standalone-auth';
 
@@ -10,8 +11,8 @@ const INVALID_LINK='This reset link is invalid, expired, or already used. Reques
 function destination(req:Request){const origin=new URL(req.url).origin;if(!(RESET_ORIGINS as readonly string[]).includes(origin))throw new AppError('Password reset is unavailable on this address.',403);return origin+'/reset-password'}
 async function input(req:Request){sameOrigin(req);if(!passwordRecoveryConfigured())throw new AppError('Password reset is not enabled yet. Contact your UFS administrator.',503);destination(req);if(!req.headers.get('content-type')?.startsWith('application/json'))throw new AppError('Use the password reset form.',415);return jsonBody(req)}
 async function eligible(subjectOrEmail:string,byEmail=false){
- if(!env.DB)throw new AppError('Password reset is temporarily unavailable.',503);
- const row=await env.DB.prepare(`SELECT e.*,i.subject FROM employee_identities i JOIN employees e ON e.id=i.employee_id WHERE i.issuer=? AND i.enabled=1 AND ${byEmail?'lower(e.email)=?':'i.subject=?'} AND ${loginEligibleSql('e')} LIMIT 1`).bind(SUPABASE_ISSUER,subjectOrEmail).first<Employee & {subject:string}>();
+ try{database()}catch{throw new AppError('Password reset is temporarily unavailable.',503)}
+ const row=await database().prepare(`SELECT e.*,i.subject FROM employee_identities i JOIN employees e ON e.id=i.employee_id WHERE i.issuer=? AND i.enabled=1 AND ${byEmail?'lower(e.email)=?':'i.subject=?'} AND ${loginEligibleSql('e')} LIMIT 1`).bind(SUPABASE_ISSUER,subjectOrEmail).first<Employee & {subject:string}>();
  if(!row||!isEmployeeRole(row.role))return null;
  if(publicPilotEnabled()&&!approvedPilotSubject(row.subject)&&!approvedTestSubjectRole(row.subject))return null;
  const testRole=approvedTestSubjectRole(row.subject);
@@ -63,8 +64,8 @@ export async function completePasswordReset(req:Request){
 
 async function revokeBeforeReset(subject:string,locked:boolean){
  const now=Math.floor(Date.now()/1000);
- await env.DB!.batch([
-  env.DB!.prepare('INSERT INTO auth_password_resets (issuer,subject,not_before,locked) VALUES (?,?,?,?) ON CONFLICT(issuer,subject) DO UPDATE SET not_before=MAX(not_before,excluded.not_before),locked=excluded.locked').bind(SUPABASE_ISSUER,subject,now,locked?1:0),
-  env.DB!.prepare('UPDATE auth_sessions SET revoked_at=? WHERE issuer=? AND subject=? AND revoked_at IS NULL').bind(now,SUPABASE_ISSUER,subject),
+ await database().batch([
+  database().prepare('INSERT INTO auth_password_resets (issuer,subject,not_before,locked) VALUES (?,?,?,?) ON CONFLICT(issuer,subject) DO UPDATE SET not_before=MAX(auth_password_resets.not_before,excluded.not_before),locked=excluded.locked').bind(SUPABASE_ISSUER,subject,now,locked?1:0),
+  database().prepare('UPDATE auth_sessions SET revoked_at=? WHERE issuer=? AND subject=? AND revoked_at IS NULL').bind(now,SUPABASE_ISSUER,subject),
  ]);
 }

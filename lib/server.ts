@@ -1,12 +1,13 @@
 import {env} from 'cloudflare:workers';
 import {standaloneMode,standaloneEmployee as supabaseEmployee,readAuthCookies} from './standalone-auth';
 import {authProvider} from './auth-provider';
+import {database} from './database';
 import {d1Bucket,type StorageBucket} from './d1-storage';
 import {convexEmployee} from './convex-auth';
 import {headers} from 'next/headers';
 import {getChatGPTUser} from '../app/chatgpt-auth';
 import {AppError,isEmployeeRole,loginEligibleSql,scopeOf,scopeSql,type Employee} from './policy';
-export function db(){if(!env.DB)throw new AppError('The database is not configured.',503);return env.DB}
+export function db(){try{return database()}catch{throw new AppError('The database is not configured.',503)}}
 // An R2 bucket is used when one is bound; otherwise files are kept in the database (lib/d1-storage.ts).
 export function bucket():StorageBucket{return env.BUCKET?env.BUCKET as unknown as StorageBucket:d1Bucket(db())}
 export async function all<T=Record<string,unknown>>(sql:string,...args:unknown[]){return (await db().prepare(sql).bind(...args).all<T>()).results}
