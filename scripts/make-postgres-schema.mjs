@@ -88,3 +88,13 @@ out.push("revoke all on all functions in schema ufs from public, anon, authentic
 mkdirSync(path.join(root, "supabase"), { recursive: true });
 writeFileSync(path.join(root, "supabase/schema.sql"), out.join("\n"));
 console.log(`Wrote supabase/schema.sql: ${tables.length} tables, ${foreignKeys.length} foreign keys, ${triggerCount} triggers.`);
+
+// One file for the Supabase SQL editor: tables, the database function, and the private file bucket, in the right order.
+const part = (name) => readFileSync(path.join(root, "supabase", name), "utf8").trimEnd();
+writeFileSync(
+  path.join(root, "supabase/setup-all.sql"),
+  ["-- UFS People: everything to run ONCE in the Supabase SQL editor (Dashboard, SQL Editor, New query, paste, Run).",
+    "-- Safe to look at first; it only creates the private 'ufs' schema, one function and one private storage bucket.", "",
+    "-- ===== 1. Tables =====", part("schema.sql"), "", "-- ===== 2. Database function =====", part("executor.sql"), "", "-- ===== 3. Private file bucket =====", part("storage.sql"), ""].join("\n"),
+);
+console.log("Wrote supabase/setup-all.sql (schema + executor + storage in one file).");

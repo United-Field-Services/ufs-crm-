@@ -26,7 +26,7 @@ behaves, and that the main pages' server code works end to end on Postgres.
 
 ## Steps (in order)
 1. **Rotate the service key if it was shared in a chat** (Supabase dashboard, Project Settings, API).
-2. **Create the database objects.** In the Supabase dashboard open SQL Editor and run, in this order: `supabase/schema.sql`, `supabase/executor.sql`, `supabase/storage.sql`.
+2. **Create the database objects.** In the Supabase dashboard open SQL Editor, New query, paste the whole of `supabase/setup-all.sql` (it holds the tables, the database function and the private file bucket, in the right order) and press Run.
    (If you have the Supabase connector authorised in Claude Code, ask Claude to apply them and review the result first.)
 3. **Check the project's sign-in settings** (the boss's reviewed setup, `docs/password-reset-setup-and-testing.md`):
    - Authentication, URL Configuration: add the exact redirect `https://ufs-people.unitedffs.workers.dev/reset-password` (no wildcards).
