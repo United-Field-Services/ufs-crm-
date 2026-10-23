@@ -3,13 +3,18 @@ import {standaloneMode,standaloneEmployee as supabaseEmployee,readAuthCookies} f
 import {authProvider} from './auth-provider';
 import {database} from './database';
 import {d1Bucket,type StorageBucket} from './d1-storage';
+import {supabaseBucket} from './supabase-storage';
 import {convexEmployee} from './convex-auth';
 import {headers} from 'next/headers';
 import {getChatGPTUser} from '../app/chatgpt-auth';
 import {AppError,isEmployeeRole,loginEligibleSql,scopeOf,scopeSql,type Employee} from './policy';
 export function db(){try{return database()}catch{throw new AppError('The database is not configured.',503)}}
 // An R2 bucket is used when one is bound; otherwise files are kept in the database (lib/d1-storage.ts).
-export function bucket():StorageBucket{return env.BUCKET?env.BUCKET as unknown as StorageBucket:d1Bucket(db())}
+export function bucket():StorageBucket{
+ if(env.BUCKET)return env.BUCKET as unknown as StorageBucket;
+ if(env.UFS_DATABASE==='supabase'&&env.UFS_SUPABASE_URL&&env.UFS_SUPABASE_SERVICE_KEY)return supabaseBucket(env.UFS_SUPABASE_URL,env.UFS_SUPABASE_SERVICE_KEY);
+ return d1Bucket(db());
+}
 export async function all<T=Record<string,unknown>>(sql:string,...args:unknown[]){return (await db().prepare(sql).bind(...args).all<T>()).results}
 export async function first<T=Record<string,unknown>>(sql:string,...args:unknown[]){return db().prepare(sql).bind(...args).first<T>()}
 export const businessDate=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());

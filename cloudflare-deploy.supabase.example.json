@@ -1,0 +1,15 @@
+{
+  "workerName": "ufs-people",
+  "database": "supabase",
+  "r2Bucket": null,
+  "placement": { "region": "aws:us-east-1" },
+  "vars": {
+    "UFS_AUTH_MODE": "pilot",
+    "UFS_SUPABASE_URL": "https://ycswaipyuonxwyalkits.supabase.co",
+    "UFS_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_<the public key>",
+    "UFS_SUPABASE_SESSION_CHECK": "enabled",
+    "UFS_PASSWORD_RECOVERY": "enabled",
+    "UFS_MAIL_RELAY": "supabase",
+    "UFS_PUBLIC_URL": "https://ufs-people.unitedffs.workers.dev"
+  }
+}

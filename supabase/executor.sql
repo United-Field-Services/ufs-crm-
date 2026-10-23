@@ -12,7 +12,7 @@ create or replace function ufs.changes() returns bigint
 language sql stable as $$ select coalesce(nullif(current_setting('ufs.changes', true), ''), '0')::bigint $$;
 
 create or replace function public.ufs_batch(statements jsonb) returns jsonb
-language plpgsql security definer set search_path = public, pg_temp as $$
+language plpgsql security definer set search_path = ufs, public, pg_temp as $$
 declare
   stmt jsonb;
   q text;

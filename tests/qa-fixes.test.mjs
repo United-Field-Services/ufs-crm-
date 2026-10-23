@@ -45,7 +45,7 @@ test('UFS-08: a new person starts in their department division and has no login 
   assert.equal(f.get('SELECT division FROM employee_profiles WHERE employee_id = ?', created.id).division, 'Operations');
   const body = await (await readProfile(hr, created.id)).json();
   assert.equal(body.profile.login_bound, false);
-  f.run("INSERT INTO employee_identities (id,issuer,subject,employee_id,enabled,created_at,approved_by) VALUES ('i1','https://x.convex.site','sub1',?,1,'2026-01-01','test')", created.id);
+  f.run("INSERT INTO employee_identities (id,issuer,subject,employee_id,enabled,created_at,approved_by) VALUES ('i1','https://ycswaipyuonxwyalkits.supabase.co/auth/v1','sub1',?,1,'2026-01-01','test')", created.id);
   assert.equal((await (await readProfile(hr, created.id)).json()).profile.login_bound, true);
 });
 

@@ -114,3 +114,9 @@
 **What was done**: Super admin can invite employees without commands: Add employee (role + "send invite" box) and the profile's sign-in card (send, resend, withdraw). Convex routes /invite and /invite/revoke (INVITE_SECRET); binding in employee_identities; invitation email through the notification system; status shown as Not invited / Invited / Active. 12 new tests.
 **Files changed**: lib/invites.ts, app/api/action/route.ts, lib/profiles.ts, app/employee-profile.tsx, app/workspace.tsx, auth-convex/convex/http.ts, docs/inviting-employees.md, tests/invites.test.mjs
 **Next steps**: invite the first real employees; bulk import from a spreadsheet; push/Slack alerts.
+
+## 2026-10-23 - Supabase migration (branch supabase-migration, NOT switched on)
+**Status**: Built and tested; the live site still runs on D1 + Convex until cutover.
+**What was done**: Postgres schema generated from the migrations (private `ufs` schema, RLS on, public roles revoked); `ufs_batch` HTTPS executor; SQL dialect translation (all 410 distinct statements verified on Postgres); `UFS_DATABASE=supabase` switch; Supabase Auth invites; Supabase Storage for files; `send-mail` Edge Function; D1-to-Postgres data copy script; setup/check helper; deploy config for Supabase; docs/supabase-migration.md.
+**Needs from the owner**: run the three SQL files in the Supabase SQL editor, deploy the Edge Function, set the Worker secret `UFS_SUPABASE_SERVICE_KEY`, run `scripts/supabase-setup.mjs check`, then cut over. The service key shared in chat must be rotated.
+**Next steps**: execute the cutover steps; verify live; delete supabase/data.sql after loading.

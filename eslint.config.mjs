@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // The Convex sign-in backend is its own project (own dependencies and checks).
     "auth-convex/**",
+    "supabase/functions/**",
   ]),
   {
     files: ["components/ui/**/*.{ts,tsx}", "hooks/use-mobile.ts"],

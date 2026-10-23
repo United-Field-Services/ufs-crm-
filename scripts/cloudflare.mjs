@@ -20,14 +20,17 @@ if (command === "config") {
   const settings = JSON.parse(readFileSync(settingsFile, "utf8"));
   const built = path.join(root, "dist/server/wrangler.json");
   if (!existsSync(built)) fail("Run `npm run build` first.");
-  if (!/^[0-9a-f-]{36}$/i.test(settings.d1?.id ?? "")) fail("cloudflare-deploy.json: d1.id must be the real database id.");
+  // "database": "supabase" runs the app on Supabase Postgres (no D1 binding); otherwise Cloudflare D1 is used.
+  const useSupabase = settings.database === "supabase";
+  if (!useSupabase && !/^[0-9a-f-]{36}$/i.test(settings.d1?.id ?? "")) fail("cloudflare-deploy.json: d1.id must be the real database id.");
+  if (useSupabase && !/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(settings.vars?.UFS_SUPABASE_URL ?? "")) fail("cloudflare-deploy.json: vars.UFS_SUPABASE_URL must be the project's https address.");
   for (const key of ["UFS_CONVEX_URL", "UFS_CONVEX_SITE_URL"]) {
     if (settings.vars?.UFS_AUTH_PROVIDER === "convex" && !/^https:\/\/[a-z0-9-]+\.convex\.(cloud|site)$/.test(settings.vars[key] ?? "")) fail(`cloudflare-deploy.json: ${key} must be the https Convex address.`);
   }
   const config = JSON.parse(readFileSync(built, "utf8"));
   config.name = settings.workerName;
   config.topLevelName = settings.workerName;
-  config.d1_databases = [{
+  config.d1_databases = useSupabase ? [] : [{
     binding: "DB", database_name: settings.d1.name, database_id: settings.d1.id,
     migrations_dir: path.join(root, "drizzle"),
   }];
@@ -36,10 +39,11 @@ if (command === "config") {
   // UFS_SELF_HOSTED makes the worker discard forged ChatGPT identity headers.
   // Run the worker next to the database (D1 is in eastern North America). Each request makes many database
   // calls, so running far from D1 made pages take 5 s; set "placement" in cloudflare-deploy.json to change it.
-  config.placement = settings.placement ?? { region: "aws:us-east-1" };
+  // With Supabase, set "placement" to a region near the Supabase project instead (see docs/supabase-migration.md).
+  if (settings.placement || !useSupabase) config.placement = settings.placement ?? { region: "aws:us-east-1" };
   // Queued emails go out every minute; reminders are created every 30 minutes.
   config.triggers = { crons: ["* * * * *", "*/30 * * * *"] };
-  config.vars = { ...settings.vars, UFS_SELF_HOSTED: "true" };
+  config.vars = { ...settings.vars, UFS_SELF_HOSTED: "true", ...(useSupabase ? { UFS_DATABASE: "supabase" } : {}) };
   const target = path.join(root, "dist/server/wrangler.deploy.json");
   writeFileSync(target, JSON.stringify(config, null, 2));
   console.log(`Wrote ${path.relative(root, target)}`);

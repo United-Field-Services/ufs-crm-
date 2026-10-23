@@ -12,8 +12,12 @@ const shared=globalThis as unknown as {__ufsOutboxDirty?:boolean};
 // The worker flushes the email queue after a request that queued something, without making the person wait.
 export const takeOutboxDirty=()=>{const dirty=!!shared.__ufsOutboxDirty;shared.__ufsOutboxDirty=false;return dirty};
 export const markOutboxDirty=()=>{shared.__ufsOutboxDirty=true};
-// Email needs the shared secret and the Convex address that sends it (see auth-convex/convex/http.ts).
-export const mailEnabled=()=>Boolean(env.UFS_NOTIFY_SECRET)&&/^https:\/\/[a-z0-9-]+\.convex\.site$/.test(env.UFS_CONVEX_SITE_URL||'');
+// Email needs a relay that holds the mailbox settings. UFS_MAIL_RELAY=supabase uses the "send-mail" Edge Function
+// (supabase/functions/send-mail) once it is deployed; otherwise the Convex backend is used (see auth-convex/convex/http.ts).
+const relay=()=>env.UFS_MAIL_RELAY==='supabase'
+ ?(/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(env.UFS_SUPABASE_URL||'')&&env.UFS_SUPABASE_SERVICE_KEY?{url:`${env.UFS_SUPABASE_URL}/functions/v1/send-mail`,secret:env.UFS_SUPABASE_SERVICE_KEY}:null)
+ :(env.UFS_NOTIFY_SECRET&&/^https:\/\/[a-z0-9-]+\.convex\.site$/.test(env.UFS_CONVEX_SITE_URL||'')?{url:`${env.UFS_CONVEX_SITE_URL}/notify`,secret:env.UFS_NOTIFY_SECRET}:null);
+export const mailEnabled=()=>relay()!==null;
 
 export type NotifyInput={scope?:string;recipients:string|string[];kind:NotificationKind;title:string;body?:string;link?:string;relatedId?:string|null;dedupeKey?:string};
 type Person={id:string;email:string;name:string;data_scope:string};
@@ -79,8 +83,9 @@ type OutboxRow={id:string;to_address:string;subject:string;text_body:string;html
 const MAX_ATTEMPTS=5;
 
 async function deliver(row:OutboxRow):Promise<string|null>{
+ const target=relay();if(!target)return 'not set up';
  try{
-  const response=await fetch(`${env.UFS_CONVEX_SITE_URL}/notify`,{method:'POST',redirect:'manual',signal:AbortSignal.timeout(15000),headers:{'Content-Type':'application/json',Authorization:`Bearer ${env.UFS_NOTIFY_SECRET}`},body:JSON.stringify({to:row.to_address,subject:row.subject,text:row.text_body,html:row.html_body})});
+  const response=await fetch(target.url,{method:'POST',redirect:'manual',signal:AbortSignal.timeout(15000),headers:{'Content-Type':'application/json',Authorization:`Bearer ${target.secret}`,...(env.UFS_MAIL_RELAY==='supabase'?{apikey:target.secret as string}:{})},body:JSON.stringify({to:row.to_address,subject:row.subject,text:row.text_body,html:row.html_body})});
   return response.ok?null:`http ${response.status}`;
  }catch{return 'network'}
 }

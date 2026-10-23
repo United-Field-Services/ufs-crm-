@@ -64,3 +64,6 @@ next-env.d.ts
 /cloudflare-deploy.json
 /test-accounts.local.json
 /TEST-ACCOUNTS.local.md
+
+# Real HR data copied for the Supabase move (never commit)
+/supabase/data.sql

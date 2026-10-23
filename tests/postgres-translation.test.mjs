@@ -46,7 +46,7 @@ test('a batch is all-or-nothing and changes() sees the previous statement', asyn
     { sql: toPostgres('INSERT INTO audit (id,actor_id,action,target_id,created_at) VALUES (?,?,?,?,?)'), params: ['pa1', 'pg1', 'x', 'pg1', '2026-01-01'] },
     { sql: toPostgres("INSERT INTO employees (id,email,name,title,department,location,employment,hire_date,created_at) VALUES ('pg2','pg1@example.test','dup','t','d','l','f','2026','2026')"), params: [] },
   ]), /UNIQUE constraint failed: employees\.data_scope, employees\.email/);
-  assert.equal((await db.query("select count(*)::int n from audit where id = 'pa1'")).rows[0].n, 0, 'nothing from the failed batch was kept');
+  assert.equal((await db.query("select count(*)::int n from ufs.audit where id = 'pa1'")).rows[0].n, 0, 'nothing from the failed batch was kept');
   const results = await batch([
     { sql: toPostgres('UPDATE employees SET title = ? WHERE id = ?'), params: ['New title', 'pg1'] },
     { sql: toPostgres('INSERT INTO audit (id,actor_id,action,target_id,created_at) SELECT ?,?,?,?,? WHERE changes() > 0'), params: ['pa2', 'pg1', 'edited', 'pg1', '2026-01-01'] },
@@ -54,7 +54,7 @@ test('a batch is all-or-nothing and changes() sees the previous statement', asyn
     { sql: toPostgres('INSERT INTO audit (id,actor_id,action,target_id,created_at) SELECT ?,?,?,?,? WHERE changes() > 0'), params: ['pa3', 'pg1', 'missed', 'pg1', '2026-01-01'] },
   ]);
   assert.deepEqual(results.map(result => result.changes), [1, 1, 0, 0]);
-  assert.equal((await db.query("select count(*)::int n from audit where id in ('pa2','pa3')")).rows[0].n, 1, 'an audit row is written only when the change happened');
+  assert.equal((await db.query("select count(*)::int n from ufs.audit where id in ('pa2','pa3')")).rows[0].n, 1, 'an audit row is written only when the change happened');
 });
 
 test('values are placed safely: quotes, dollar signs and injection attempts stay plain text', async () => {
@@ -62,7 +62,7 @@ test('values are placed safely: quotes, dollar signs and injection attempts stay
   await run('INSERT INTO announcements (id,title,body,created_by,created_at) VALUES (?,?,?,?,?)', 'an1', nasty, '$1 and $2', 'pg1', '2026-01-01');
   const [answer] = await batch([{ sql: toPostgres('SELECT title,body FROM announcements WHERE id = ?'), params: ['an1'] }]);
   assert.deepEqual(answer.rows[0], { title: nasty, body: '$1 and $2' });
-  assert.equal((await db.query("select count(*)::int n from employees")).rows[0].n >= 1, true);
+  assert.equal((await db.query("select count(*)::int n from ufs.employees")).rows[0].n >= 1, true);
 });
 
 test('null-safe comparison, booleans and missing values behave like SQLite', async () => {
@@ -75,4 +75,27 @@ test('null-safe comparison, booleans and missing values behave like SQLite', asy
 
 test('the data-scope rules still stop a cross-scope reference', async () => {
   await assert.rejects(run("INSERT INTO leave_requests (id,employee_id,type,start_date,end_date,days,year,created_at,data_scope) VALUES (?,?,?,?,?,?,?,?,?)", 'lr1', 'pg1', 'Vacation', '2026-11-02', '2026-11-02', 1, 2026, '2026-01-01', 'qa-bots-v1'), /Data scope boundary/);
+});
+
+test('the public roles can neither read the data nor call the executor (the publishable key alone gets nothing)', async () => {
+  await db.exec("insert into ufs.employees (id,email,name,title,department,location,employment,hire_date,created_at) values ('sec1','sec1@example.test','Sec','t','d','l','Full-Time','2026-01-01','2026-01-01')");
+  for (const role of ['anon', 'authenticated']) {
+    await db.exec(`set role ${role}`);
+    try {
+      await assert.rejects(db.query('select * from ufs.employees'), /permission denied/i, `${role} cannot read tables`);
+      await assert.rejects(db.query('select * from ufs.compensation_records'), /permission denied/i);
+      await assert.rejects(db.query("insert into ufs.employees (id,email,name,title,department,location,employment,hire_date,created_at) values ('x','x@x','x','x','x','x','x','x','x')"), /permission denied/i);
+      await assert.rejects(db.query("select public.ufs_batch('[]'::jsonb)"), /permission denied/i, `${role} cannot call the executor`);
+    } finally { await db.exec('reset role'); }
+  }
+  await db.exec('set role service_role');
+  try { assert.equal((await db.query("select jsonb_array_length(public.ufs_batch('[]'::jsonb)) n")).rows[0].n, 0); } finally { await db.exec('reset role'); }
+});
+
+test('every table has row-level security switched on and no policy', async () => {
+  const tables = (await db.query("select c.relname, c.relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'ufs' and c.relkind = 'r'")).rows;
+  assert.ok(tables.length >= 36);
+  assert.deepEqual(tables.filter(table => !table.relrowsecurity).map(table => table.relname), []);
+  assert.equal((await db.query("select count(*)::int n from pg_policies where schemaname = 'ufs'")).rows[0].n, 0);
+  assert.equal((await db.query("select count(*)::int n from information_schema.tables where table_schema = 'public'")).rows[0].n, 0, 'no data tables in the exposed schema');
 });
