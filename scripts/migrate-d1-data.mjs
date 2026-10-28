@@ -49,10 +49,19 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const outFile = path.join(root, option("out", "supabase/data.sql"));
   const rowsByTable = {};
   let total = 0;
+  // Records that only mean something to the OLD sign-in service or to the old test emails are left behind: sessions, tokens,
+  // rate limits, reset cut-offs, the old account bindings and the email queue. The first administrator is bound again in
+  // Supabase by scripts/supabase-setup.mjs. Add --include-sign-in-history to copy them anyway.
+  const leftBehind = new Set(process.argv.includes("--include-sign-in-history") ? [] : ["auth_sessions", "auth_session_tokens", "auth_rate_limits", "auth_password_resets", "employee_identities", "email_outbox"]);
   for (const table of tableOrder()) {
-    const run = spawnSync("npx", ["wrangler", "d1", "execute", "DB", "--remote", "--config", config, "--json", "--command", `SELECT * FROM "${table}"`], { cwd: root, encoding: "utf8", shell: process.platform === "win32", maxBuffer: 256 * 1024 * 1024 });
+    if (leftBehind.has(table)) { console.log(`${table}: left behind (old sign-in data)`); continue; }
+    // Run wrangler directly with node (no shell), so the SQL text is passed through untouched on Windows too.
+    const run = spawnSync(process.execPath, [path.join(root, "node_modules/wrangler/bin/wrangler.js"), "d1", "execute", "DB", "--remote", "--config", config, "--json", "--command", `SELECT * FROM "${table}"`], { cwd: root, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
     let parsed;
-    try { parsed = JSON.parse(run.stdout); } catch { console.error(`Could not read ${table} from D1. Run \`node scripts/cloudflare.mjs config\` first and check you are signed in to Cloudflare.`); process.exit(1); }
+    try { parsed = JSON.parse(run.stdout.slice(run.stdout.indexOf("["))); } catch {
+      console.error(`Could not read ${table} from D1.\n${(run.stderr || run.stdout || "").trim().split("\n").slice(-6).join("\n")}\nRun \`node scripts/cloudflare.mjs config\` first and check you are signed in to Cloudflare (npx wrangler whoami).`);
+      process.exit(1);
+    }
     rowsByTable[table] = parsed[0]?.results ?? [];
     total += rowsByTable[table].length;
     if (rowsByTable[table].length) console.log(`${table}: ${rowsByTable[table].length} rows`);
